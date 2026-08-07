@@ -761,6 +761,27 @@ function NumberPad({
   );
 }
 
+function FullscreenButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className="fullscreen-button"
+      onClick={onToggle}
+      aria-pressed={active}
+      aria-label={active ? "Exit full screen" : "Enter full screen"}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        {active ? (
+          <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
+        ) : (
+          <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />
+        )}
+      </svg>
+      <span>{active ? "Exit full screen" : "Full screen"}</span>
+    </button>
+  );
+}
+
 function ModeSelector({
   mode,
   setMode,
@@ -1029,6 +1050,8 @@ export default function FluencyApp() {
   const [boardInvitation, setBoardInvitation] = useState("");
   const [boardHelpOpen, setBoardHelpOpen] = useState(false);
   const [lastMisconception, setLastMisconception] = useState<string | null>(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [fallbackFullscreen, setFallbackFullscreen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const engineRef = useRef<EngineApi | null>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1036,6 +1059,37 @@ export default function FluencyApp() {
   const questionStartedAt = useRef(0);
   const statsRef = useRef<SessionStats>(EMPTY_STATS);
   const updateRequestedRef = useRef(false);
+  const fullscreenActive = nativeFullscreen || fallbackFullscreen;
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const legacyDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      setNativeFullscreen(Boolean(document.fullscreenElement || legacyDocument.webkitFullscreenElement));
+    };
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!fallbackFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [fallbackFullscreen]);
+
+  useEffect(() => {
+    if (!fallbackFullscreen || boardMode) return;
+    const leaveFallbackFullscreen = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFallbackFullscreen(false);
+    };
+    window.addEventListener("keydown", leaveFallbackFullscreen);
+    return () => window.removeEventListener("keydown", leaveFallbackFullscreen);
+  }, [boardMode, fallbackFullscreen]);
 
   useEffect(() => {
     let saved: { challenge?: number; support?: number; mode?: PracticeMode; focus?: string | null; preferences?: Preferences } | null = null;
@@ -1516,6 +1570,45 @@ export default function FluencyApp() {
     engineRef.current?.setFocus(selectedFocus);
   };
 
+  const enterFullscreen = async () => {
+    if (fullscreenActive) return;
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+    const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+    if (!request) {
+      setFallbackFullscreen(true);
+      return;
+    }
+    try {
+      await request();
+      setFallbackFullscreen(false);
+      setNativeFullscreen(true);
+    } catch {
+      // iPad browsers can reserve native full screen. The in-app fallback still
+      // removes every nonessential page edge and fills the available viewport.
+      setFallbackFullscreen(true);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    const legacyDocument = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenElement?: Element | null;
+    };
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+      else if (legacyDocument.webkitFullscreenElement && legacyDocument.webkitExitFullscreen) await legacyDocument.webkitExitFullscreen();
+    } catch {
+      // The visual fallback is always safe to close even if the browser refuses.
+    }
+    setFallbackFullscreen(false);
+    setNativeFullscreen(false);
+  };
+
+  const toggleFullscreen = () => {
+    if (fullscreenActive) void exitFullscreen();
+    else void enterFullscreen();
+  };
+
   const revealHint = () => setScaffoldStage((stage) => Math.min(4, stage + 1));
 
   const endSession = () => {
@@ -1547,7 +1640,7 @@ export default function FluencyApp() {
     setScreen("summary");
     setControlOpen(false);
     setBoardMode(false);
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+    if (fullscreenActive) void exitFullscreen();
   };
 
   useEffect(() => {
@@ -1583,12 +1676,8 @@ export default function FluencyApp() {
     const nextBoardMode = !boardMode;
     setBoardMode(nextBoardMode);
     setBoardAnswerVisible(false);
-    try {
-      if (nextBoardMode && !document.fullscreenElement) await document.documentElement.requestFullscreen();
-      else if (!nextBoardMode && document.fullscreenElement) await document.exitFullscreen();
-    } catch {
-      // Some embedded browsers reserve full screen for their own controls.
-    }
+    if (nextBoardMode) await enterFullscreen();
+    else if (fullscreenActive) await exitFullscreen();
   };
 
   const revealBoardStage = () => {
@@ -1617,7 +1706,7 @@ export default function FluencyApp() {
       if (key === "m") setScaffoldStage(4);
       if (key === "a") setAnotherWayOpen((open) => !open);
       if (key === "j") setJotOpen((open) => !open);
-      if (key === "f") toggleBoardMode();
+      if (key === "f") toggleFullscreen();
       if (event.key === "Escape") {
         if (boardHelpOpen) setBoardHelpOpen(false);
         else if (jotOpen) setJotOpen(false);
@@ -2004,6 +2093,8 @@ export default function FluencyApp() {
     preferences.simplifiedDensity ? "simplified-density" : "",
     preferences.largerTargets ? "larger-targets" : "",
     preferences.screenReaderOptimised ? "screen-reader-optimised" : "",
+    fullscreenActive ? "is-fullscreen" : "",
+    fallbackFullscreen ? "app-fullscreen" : "",
     boardMode ? "board-mode" : "",
   ].filter(Boolean).join(" ");
 
@@ -2068,6 +2159,7 @@ export default function FluencyApp() {
             <div className="wordmark"><i aria-hidden="true" />Fluency</div>
             <div className="setup-header-actions">
               {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
+              <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
           </header>
@@ -2126,6 +2218,7 @@ export default function FluencyApp() {
             </div>
             <div className="practice-tools">
               <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed={boardMode}>{boardMode ? "Exit board" : "Board"}</button>
+              <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
           </header>
