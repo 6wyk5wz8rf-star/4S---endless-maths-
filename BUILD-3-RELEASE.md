@@ -24,6 +24,7 @@
 - Made teacher subskill, retrieval, strategy, connected-sequence, near-transfer, adaptation and representation controls alter the underlying engine rather than acting as decorative settings.
 - Made same-sequence sessions independent of response patterns and added JSON-safe engine snapshots so interrupted practice resumes from the exact generator, retrieval and adaptation state.
 - Corrected descending-sequence models so a negative step is never rendered as a number-line endpoint.
+- Removed the incompatible Actions deployment that the repository's protected Pages environment rejects, and restored the established branch-root publishing path with the final compiled assets synchronised byte-for-byte from `pages-dist`.
 
 ## Automated verification completed
 
@@ -34,6 +35,7 @@
 - Evidence audit: 4,500 synthetic events compacted to the configured 4,000-event cap; duplicate-safe import and profile mapping covered by tests.
 - Long-session audit: 500 consecutive questions generated without exhaustion; measured generation time is printed by the audit command.
 - Production Vite build: verified by `npm run check` before release hand-off.
+- GitHub Pages root export: rebuilt with `npm run export:github`; root HTML, JavaScript, CSS, manifest, icon and service worker were compared with the generated production output.
 
 ## Final Rams-style interaction audit
 
