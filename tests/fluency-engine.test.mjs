@@ -130,6 +130,18 @@ test("broad Focus mode honours each selected strand", () => {
   }
 });
 
+test("teacher relationship and fraction-decimal focuses remain mathematically coherent", () => {
+  const relationships = new FluencyEngine({ seed: "focus-relationships", challenge: 72, mode: "focus", focus: "equivalence and missing numbers" });
+  const relationshipItems = Array.from({ length: 200 }, () => relationships.next());
+  assert.ok(relationshipItems.every((item) => /equival|equal|balanc|missing|comparison|inverse/.test(`${item.family} ${item.subskill}`)));
+
+  const numberParts = new FluencyEngine({ seed: "focus-number-parts", challenge: 60, mode: "focus", focus: "fractions and decimals" });
+  const numberPartItems = Array.from({ length: 200 }, () => numberParts.next());
+  assert.ok(numberPartItems.every((item) => ["fractions", "decimals"].includes(item.strand)));
+  assert.ok(numberPartItems.some((item) => item.strand === "fractions"));
+  assert.ok(numberPartItems.some((item) => item.strand === "decimals"));
+});
+
 test("errors are revisited with spacing rather than immediate drilling", () => {
   const engine = new FluencyEngine({ seed: "retrieval-spacing", challenge: 55 });
   const item = engine.next();
@@ -284,6 +296,26 @@ test("support adapts without touching challenge", () => {
   assert.equal(adaptiveSupport(35, "three-independent-correct"), 27);
 });
 
+test("teacher challenge ranges remain authoritative while adaptation continues inside them", () => {
+  const engine = new FluencyEngine({ seed: "teacher-range", challenge: 52, challengeRange: { min: 45, max: 60 } });
+  for (let index = 0; index < 24; index += 1) {
+    const item = engine.next();
+    engine.recordResponse({ item, correct: false, firstTry: false, supportUsed: 2, responseMs: 4000 });
+  }
+  const items = Array.from({ length: 250 }, () => engine.next());
+  assert.ok(items.every((item) => item.metadata.targetDifficulty >= 45 && item.metadata.targetDifficulty <= 60));
+  assert.ok(items.every((item) => item.metadata.selectedChallengeRange.min === 45 && item.metadata.selectedChallengeRange.max === 60));
+  assert.deepEqual(engine.getAdaptation().challengeRange, { min: 45, max: 60 });
+
+  engine.setChallenge(58, true);
+  assert.deepEqual(engine.getAdaptation().challengeRange, { min: 45, max: 60 });
+  assert.ok(Array.from({ length: 100 }, () => engine.next()).every((item) => item.difficulty >= 45 && item.difficulty <= 60));
+
+  engine.setChallenge(72);
+  assert.equal(engine.getAdaptation().challengeRange, null);
+  assert.equal(engine.next().metadata.selectedChallenge, 72);
+});
+
 test("every generator can produce a structurally complete item", () => {
   for (const family of QUESTION_FAMILIES) {
     let produced = false;
@@ -306,6 +338,190 @@ test("every generator can produce a structurally complete item", () => {
     }
     assert.equal(produced, true, `${family.id} could not produce a valid question`);
   }
+});
+
+test("restricted high-challenge Quick Fire sessions remain endless without immediate duplicates", () => {
+  const engine = new FluencyEngine({ seed: "build3-75-quick", challenge: 75, mode: "quick" });
+  let previousSignature = null;
+  for (let index = 0; index < 500; index += 1) {
+    const item = engine.next();
+    const signature = engine.getHistory().at(-1);
+    assert.ok(validateQuestion(item).valid);
+    assert.notEqual(signature, previousSignature, `question ${index} repeated immediately`);
+    previousSignature = signature;
+  }
+});
+
+test("teacher subskill filters and family allow-lists narrow the engine without breaking challenge", () => {
+  const derived = new FluencyEngine({
+    seed: "teacher-derived-facts",
+    challenge: 58,
+    challengeRange: { min: 48, max: 68 },
+    mode: "focus",
+    focus: "multiplication",
+    subskill: "Derived facts",
+  });
+  const derivedItems = Array.from({ length: 120 }, () => derived.next());
+  assert.ok(derivedItems.every((item) => item.family === "derived-multiplication-facts"));
+  assert.ok(derivedItems.every((item) => item.difficulty >= 48 && item.difficulty <= 68));
+
+  const onlyRecall = new FluencyEngine({
+    seed: "teacher-family-list",
+    challenge: 52,
+    mode: "focus",
+    focus: "tables",
+    permittedFamilies: ["table-recall"],
+  });
+  assert.ok(Array.from({ length: 100 }, () => onlyRecall.next()).every((item) => item.family === "table-recall"));
+
+  const withoutRecall = new FluencyEngine({ seed: "teacher-family-exclusion", challenge: 52, excludedFamilies: ["table-recall"] });
+  assert.ok(Array.from({ length: 300 }, () => withoutRecall.next()).every((item) => item.family !== "table-recall"));
+});
+
+test("table-group subskills select facts containing the requested table factors", () => {
+  const engine = new FluencyEngine({ seed: "teacher-table-group", challenge: 48, mode: "focus", focus: "tables", subskill: "2, 5 and 10" });
+  const requested = new Set([2, 5, 10]);
+  const items = Array.from({ length: 160 }, () => engine.next());
+  for (const item of items) {
+    const values = [Number(item.values?.a), Number(item.values?.b)].filter((value) => Number.isInteger(value) && value >= 2 && value <= 12);
+    const keyFactors = [...String(item.metadata.retrievalKey).matchAll(/(?:tables:|fact-family:|derived:)(\d+)(?:x(\d+))?/g)].flatMap((match) => [Number(match[1]), Number(match[2])]).filter(Number.isFinite);
+    assert.ok((keyFactors.length ? keyFactors : values).some((factor) => requested.has(factor)), `${item.family} did not contain a 2×, 5× or 10× factor`);
+  }
+});
+
+test("strategy, connected-sequence and near-transfer controls change selection and scheduling", () => {
+  const noStrategies = new FluencyEngine({ seed: "no-strategies", challenge: 70, mode: "focus", focus: "multiplication", includeStrategyQuestions: false });
+  const plainItems = Array.from({ length: 220 }, () => noStrategies.next());
+  assert.ok(plainItems.every((item) => !item.metadata.strategy));
+  assert.ok(plainItems.every((item) => !/strategy|derived|distribut|efficient/.test(`${item.family} ${item.subskill}`)));
+
+  const connectionsOn = new FluencyEngine({ seed: "connections", challenge: 55, mode: "focus", focus: "multiplication", permittedFamilies: ["multiplication-fact-family-web"], connectedSequences: true });
+  const connected = connectionsOn.next();
+  assert.ok(connected.connections.length >= 2);
+  assert.ok(connectionsOn.getAdaptation().scheduled >= 2);
+  const connectionsOff = new FluencyEngine({ seed: "connections", challenge: 55, mode: "focus", focus: "multiplication", permittedFamilies: ["multiplication-fact-family-web"], connectedSequences: false });
+  connectionsOff.next();
+  assert.equal(connectionsOff.getAdaptation().scheduled, 0);
+
+  const transferOn = new FluencyEngine({ seed: "near-transfer-option", challenge: 60, mode: "focus", focus: "addition", permittedFamilies: ["year4-addition"], connectedSequences: false, nearTransfer: true });
+  const modelledOn = transferOn.next();
+  transferOn.recordResponse({ item: modelledOn, correct: true, firstTry: false, supportUsed: 4, modelUsed: true });
+  assert.equal(transferOn.getAdaptation().scheduled, 1);
+  const transferOff = new FluencyEngine({ seed: "near-transfer-option", challenge: 60, mode: "focus", focus: "addition", permittedFamilies: ["year4-addition"], connectedSequences: false, nearTransfer: false });
+  const modelledOff = transferOff.next();
+  transferOff.recordResponse({ item: modelledOff, correct: true, firstTry: false, supportUsed: 4, modelUsed: true });
+  assert.equal(transferOff.getAdaptation().scheduled, 0);
+});
+
+test("retrieval weighting changes My Mix selection while adaptive difficulty can be disabled", () => {
+  const learningState = {
+    "addition:number bonds": { score: 0.6, attempts: 20, lastSeen: -100, lastSeenAt: Date.now() - 10 * 86400000 },
+  };
+  const make = (retrievalWeight) => new FluencyEngine({
+    seed: "retrieval-weighting",
+    challenge: 55,
+    mode: "my-mix",
+    learningState,
+    retrievalWeight,
+    connectedSequences: false,
+  });
+  const makeNone = make(0);
+  const makeStrong = make(0.55);
+  const none = Array.from({ length: 600 }, () => makeNone.next());
+  const strong = Array.from({ length: 600 }, () => makeStrong.next());
+  const noneCount = none.filter((item) => item.strand === "addition").length;
+  const strongCount = strong.filter((item) => item.strand === "addition").length;
+  assert.ok(strongCount >= noneCount + 20, `${strongCount} strong-retrieval additions did not materially exceed ${noneCount}`);
+
+  const fixedBand = new FluencyEngine({ seed: "no-adaptive-difficulty", challenge: 70, challengeRange: { min: 64, max: 76 }, adaptiveDifficulty: false });
+  for (let index = 0; index < 12; index += 1) {
+    const item = fixedBand.next();
+    fixedBand.recordResponse({ item, correct: false, firstTry: false, supportUsed: 2 });
+  }
+  assert.equal(fixedBand.getAdaptation().performanceBias, 0);
+  assert.ok(Array.from({ length: 120 }, () => fixedBand.next()).every((item) => item.difficulty >= 64 && item.difficulty <= 76));
+});
+
+test("representation frequency is deterministic metadata and does not perturb the question sequence", () => {
+  const hidden = new FluencyEngine({ seed: "representation-frequency", challenge: 58, representationFrequency: 0 });
+  const frequent = new FluencyEngine({ seed: "representation-frequency", challenge: 58, representationFrequency: 1 });
+  for (let index = 0; index < 160; index += 1) {
+    const left = hidden.next();
+    const right = frequent.next();
+    assert.deepEqual({ family: left.family, display: left.display, answer: left.answer }, { family: right.family, display: right.display, answer: right.answer });
+    assert.equal(left.metadata.representationFrequency, 0);
+    assert.equal(left.metadata.representationSuggested, false);
+    assert.equal(right.metadata.representationFrequency, 1);
+    assert.equal(right.metadata.representationSuggested, true);
+  }
+});
+
+test("fixed sequences remain identical despite opposite pupil response patterns", () => {
+  const options = { seed: "same-teacher-sequence", challenge: 62, mode: "my-mix", fixedSequence: true };
+  const secureResponses = new FluencyEngine(options);
+  const strugglingResponses = new FluencyEngine(options);
+  for (let index = 0; index < 160; index += 1) {
+    const secureItem = secureResponses.next();
+    const strugglingItem = strugglingResponses.next();
+    assert.deepEqual(
+      { family: secureItem.family, display: secureItem.display, answer: secureItem.answer },
+      { family: strugglingItem.family, display: strugglingItem.display, answer: strugglingItem.answer },
+    );
+    secureResponses.recordResponse({ item: secureItem, correct: true, firstTry: true, supportUsed: 0, modelUsed: false });
+    strugglingResponses.recordResponse({ item: strugglingItem, correct: false, firstTry: false, supportUsed: 4, modelUsed: true });
+  }
+  assert.equal(secureResponses.getAdaptation().scheduled, 0);
+  assert.equal(strugglingResponses.getAdaptation().scheduled, 0);
+  assert.equal(secureResponses.getAdaptation().performanceBias, 0);
+  assert.notDeepEqual(secureResponses.getLearningState(), strugglingResponses.getLearningState(), "mastery should still record the different outcomes");
+});
+
+test("a serialised engine snapshot resumes RNG, queues, history and learning state exactly", () => {
+  const original = new FluencyEngine({
+    seed: "serialised-resume",
+    challenge: 58,
+    challengeRange: { min: 50, max: 66 },
+    mode: "focus",
+    focus: "multiplication",
+    retrievalWeight: "strong",
+    representationFrequency: "high",
+  });
+  for (let index = 0; index < 12; index += 1) {
+    const item = original.next();
+    if (index === 3) original.recordResponse({ item, correct: false, firstTry: false, supportUsed: 1 });
+    if (index === 7) original.recordResponse({ item, correct: true, firstTry: false, supportUsed: 4, modelUsed: true });
+  }
+  const state = JSON.parse(JSON.stringify(original.getState()));
+  assert.ok(state.rngState >= 0);
+  assert.ok(state.scheduled.length > 0);
+  const expected = Array.from({ length: 100 }, () => {
+    const item = original.next();
+    return { id: item.id, family: item.family, display: item.display, answer: item.answer, connection: item.metadata.connectionKind ?? null };
+  });
+  const resumed = new FluencyEngine({ state });
+  const actual = Array.from({ length: 100 }, () => {
+    const item = resumed.next();
+    return { id: item.id, family: item.family, display: item.display, answer: item.answer, connection: item.metadata.connectionKind ?? null };
+  });
+  assert.deepEqual(actual, expected);
+  assert.deepEqual(resumed.getAdaptation().challengeRange, { min: 50, max: 66 });
+  assert.equal(resumed.getAdaptation().retrievalWeight, 0.55);
+});
+
+test("descending sequence scaffolds use actual sequence endpoints rather than the negative step", () => {
+  const engine = new FluencyEngine({ seed: "descending-sequence-visual", challenge: 58, mode: "focus", permittedFamilies: ["sequence"] });
+  let item;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    item = engine.next();
+    if (Number(item.values.b) < 0) break;
+  }
+  assert.ok(Number(item.values.b) < 0, "a descending sequence was not generated");
+  const values = [0, 1, 2, 3].map((multiple) => Number(item.values.a) + Number(item.values.b) * multiple);
+  assert.equal(item.scaffold.visual.kind, "number-line");
+  assert.equal(item.scaffold.visual.min, Math.min(...values));
+  assert.equal(item.scaffold.visual.max, Math.max(...values));
+  assert.deepEqual(item.scaffold.visual.points, values);
+  assert.notEqual(item.scaffold.visual.min, Number(item.values.b));
 });
 
 test("long sessions generate quickly and without exhausting the engine", () => {
