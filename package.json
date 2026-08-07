@@ -1,6 +1,6 @@
 {
   "name": "year-4-fluency",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,8 +12,10 @@
     "build:pages": "npm run build",
     "export:github": "npm run build:pages && node scripts/sync-github-root.mjs",
     "audit:math": "node scripts/audit-fluency.mjs",
-    "test": "node --test tests/fluency-engine.test.mjs",
-    "check": "npm test && npm run build && npm run audit:math -- --count 20"
+    "audit:release": "node scripts/audit-build3.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm test && npm run build && npm run audit:math -- --count 20 && npm run audit:release"
   },
   "dependencies": {
     "react": "19.2.6",

@@ -1,7 +1,8 @@
-const CACHE_NAME = "year-4-fluency-build-2-v1";
+const CACHE_NAME = "year-4-fluency-build-3-v1";
+const APP_SHELL = ["./", "./index.html", "./assets/app.js", "./assets/index.css", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.add("./")).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
 });
 
 self.addEventListener("activate", (event) => {
@@ -10,6 +11,10 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -24,7 +29,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(async () => (await caches.match(request)) ?? (await caches.match("./"))),
+        .catch(async () => (await caches.match(request)) ?? (await caches.match("./index.html")) ?? (await caches.match("./"))),
     );
     return;
   }
