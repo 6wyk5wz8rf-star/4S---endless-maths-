@@ -9,6 +9,7 @@ import {
   evaluateAnswer,
   generatorCatalogue,
   masteryLabel,
+  normalisePracticeSelection,
   supportBand,
   validateQuestion,
 } from "../lib/fluency-engine.mjs";
@@ -101,6 +102,44 @@ test("tables focus stays inside the multiplication fact network", () => {
   assert.ok(new Set(items.map((item) => item.family)).size >= 5);
 });
 
+test("invalid mode, focus and challenge combinations normalise without ending practice", () => {
+  const cases = [
+    { requested: { mode: "focus", focus: "decimals", challenge: 0 }, expected: { mode: "focus", focus: null } },
+    { requested: { mode: "quick", focus: "fractions", challenge: 50 }, expected: { mode: "focus", focus: "fractions" } },
+    { requested: { mode: "quick", focus: "decimals", challenge: 50 }, expected: { mode: "focus", focus: "decimals" } },
+    { requested: { mode: "quick", focus: "addition", challenge: 100 }, expected: { mode: "focus", focus: "addition" } },
+    { requested: { mode: "quick", focus: null, challenge: 100 }, expected: { mode: "mix", focus: null } },
+    { requested: { mode: "think", focus: "subtraction", challenge: 10 }, expected: { mode: "focus", focus: "subtraction" } },
+  ];
+
+  for (const { requested, expected } of cases) {
+    const selection = normalisePracticeSelection(requested);
+    assert.equal(selection.challenge, requested.challenge, "normalisation must not move the chosen challenge");
+    assert.deepEqual({ mode: selection.mode, focus: selection.focus }, expected);
+    const engine = new FluencyEngine({ ...requested, seed: `normalise-${requested.mode}-${requested.focus}-${requested.challenge}` });
+    assert.deepEqual({ mode: engine.getAdaptation().mode, focus: engine.getAdaptation().focus }, expected);
+    for (let index = 0; index < 80; index += 1) assert.equal(validateQuestion(engine.next()).valid, true);
+  }
+});
+
+test("live selection setters and restored sessions use the same normalisation guard", () => {
+  const live = new FluencyEngine({ seed: "live-selection-guard", challenge: 0, mode: "mix" });
+  assert.deepEqual(live.setFocus("decimals"), { mode: "mix", focus: null, challenge: 0 });
+  assert.equal(validateQuestion(live.next()).valid, true);
+  live.setChallenge(100);
+  assert.deepEqual(live.setMode("quick"), { mode: "mix", focus: null, challenge: 100 });
+  assert.equal(validateQuestion(live.next()).valid, true);
+
+  const state = live.getState();
+  state.mode = "quick";
+  state.focus = "fractions";
+  state.challenge = 50;
+  state.challengeRange = null;
+  const restored = new FluencyEngine({ state });
+  assert.deepEqual({ mode: restored.getAdaptation().mode, focus: restored.getAdaptation().focus }, { mode: "focus", focus: "fractions" });
+  assert.equal(validateQuestion(restored.next()).valid, true);
+});
+
 test("foundation sessions remain accessible and free from later notation", () => {
   for (const challenge of [0, 5, 10, 15]) {
     const engine = new FluencyEngine({ seed: `foundation-${challenge}`, challenge });
@@ -108,6 +147,52 @@ test("foundation sessions remain accessible and free from later notation", () =>
     assert.ok(items.every((item) => !["fractions", "decimals"].includes(item.strand)));
     assert.ok(items.every((item) => !item.display.includes("−") || Number(item.answer) >= 0));
     assert.ok(items.every((item) => item.metadata.thinking <= 2));
+  }
+});
+
+test("foundation representations stay compact and subtraction stays non-negative", () => {
+  const multiplication = new FluencyEngine({
+    seed: "compact-foundation-groups",
+    challenge: 25,
+    mode: "focus",
+    focus: "multiplication",
+    permittedFamilies: ["multiplication-foundation-models"],
+    connectedSequences: false,
+  });
+  let repeatedAdditionSeen = false;
+  for (let index = 0; index < 400; index += 1) {
+    const item = multiplication.next();
+    if (item.metadata.structure !== "repeated-addition") continue;
+    repeatedAdditionSeen = true;
+    assert.ok(item.choices.every((choice) => String(choice).split("+").length <= 6), `choice is too long: ${item.choices.join(" | ")}`);
+  }
+  assert.equal(repeatedAdditionSeen, true);
+
+  const subtraction = new FluencyEngine({
+    seed: "non-negative-foundation-subtraction",
+    challenge: 30,
+    mode: "focus",
+    focus: "subtraction",
+    permittedFamilies: ["foundation-subtraction-strategies"],
+    connectedSequences: false,
+  });
+  for (let index = 0; index < 500; index += 1) {
+    const item = subtraction.next();
+    assert.ok(Number(item.answer) >= 0, `${item.display} produced ${item.answer}`);
+  }
+});
+
+test("scaffold representations never expose generic placeholder copy", () => {
+  for (const challenge of AUDIT_POINTS) {
+    const engine = new FluencyEngine({ seed: `representation-copy-${challenge}`, challenge, support: 100 });
+    for (let index = 0; index < 500; index += 1) {
+      const item = engine.next();
+      const visual = item.scaffold.visual;
+      if (visual.kind !== "relationship") continue;
+      assert.ok(visual.left && visual.right, `${item.family} has an incomplete relationship visual`);
+      assert.equal(/^(known|new|known fact|new fact)$/i.test(String(visual.left)), false, `${item.family} exposed ${visual.left}`);
+      assert.equal(/^(known|new|known fact|new fact)$/i.test(String(visual.right)), false, `${item.family} exposed ${visual.right}`);
+    }
   }
 });
 
@@ -195,6 +280,96 @@ test("generated representations cover the coherent Build 2 visual library", () =
   for (const kind of ["ten-frame", "bead-string", "part-whole", "array", "counters", "base-ten", "fraction-strip", "bar-model", "hundred-grid", "number-line", "relationship", "worked-example"]) {
     assert.ok(kinds.has(kind), `missing ${kind}`);
   }
+});
+
+test("every generated number-line marker and hidden-marker index is valid", () => {
+  let numberLines = 0;
+  let hiddenMarkers = 0;
+  for (const challenge of AUDIT_POINTS) {
+    const engine = new FluencyEngine({ seed: `number-line-integrity-${challenge}`, challenge });
+    for (let index = 0; index < 800; index += 1) {
+      const item = engine.next();
+      for (const visual of [item.promptVisual, item.scaffold.visual]) {
+        if (!visual || !["number-line", "bead-string"].includes(visual.kind)) continue;
+        numberLines += 1;
+        const markers = visual.markers ?? visual.points ?? [];
+        assert.ok(Number.isFinite(visual.min) && Number.isFinite(visual.max) && visual.max > visual.min, `${item.family}/${item.metadata.structure}: invalid range`);
+        assert.ok(markers.every((marker) => Number.isFinite(marker) && marker >= visual.min && marker <= visual.max), `${item.family}/${item.metadata.structure}: marker outside the line`);
+        if (visual.unknown === null || visual.unknown === undefined) continue;
+        hiddenMarkers += 1;
+        assert.ok(Number.isInteger(visual.unknown) && visual.unknown >= 0 && visual.unknown < markers.length, `${item.family}/${item.metadata.structure}: hidden marker ${visual.unknown} is not a marker-array index`);
+      }
+      assert.equal(validateQuestion(item).valid, true, `${item.family}/${item.metadata.structure}: ${validateQuestion(item).issues.join(", ")}`);
+    }
+  }
+  assert.ok(numberLines > 1_000);
+  assert.ok(hiddenMarkers > 100);
+
+  const invalid = new FluencyEngine({ seed: "invalid-hidden-marker-guard", challenge: 60 }).next();
+  invalid.promptVisual = { kind: "number-line", title: "Broken line", min: 0, max: 10, markers: [5], unknown: 5 };
+  const validation = validateQuestion(invalid);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.issues.includes("Prompt number line has an invalid hidden marker"));
+});
+
+test("number-line questions hide the value they ask pupils to find", () => {
+  const familyItems = (familyId, target = 90) => {
+    const family = QUESTION_FAMILIES.find((candidate) => candidate.id === familyId);
+    assert.ok(family, `missing ${familyId}`);
+    let state = 0x9e3779b9;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const found = new Map();
+    for (let attempt = 0; attempt < 2_000 && found.size < family.structures.length; attempt += 1) {
+      const item = family.generate({ rng, target, challenge: target });
+      found.set(item.metadata.structure, item);
+    }
+    assert.deepEqual([...found.keys()].sort(), [...family.structures].sort(), `${familyId} did not generate every structure`);
+    return found;
+  };
+
+  const hiddenValue = (item, where = "promptVisual") => {
+    const line = where === "promptVisual" ? item.promptVisual : item.scaffold.visual;
+    const markers = line.markers ?? line.points ?? [];
+    assert.ok(Number.isInteger(line.unknown) && line.unknown >= 0 && line.unknown < markers.length, `${item.family}/${item.metadata.structure}: no valid hidden target`);
+    return markers[line.unknown];
+  };
+  const numericAnswer = (item) => Number(String(item.answer).replaceAll(",", ""));
+  const fractionAnswer = (item) => {
+    const match = String(item.answer).match(/^(-?\d+)\/(-?\d+)$/);
+    assert.ok(match, `${item.family}/${item.metadata.structure}: invalid fraction answer ${item.answer}`);
+    return Number(match[1]) / Number(match[2]);
+  };
+  const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: hidden ${actual}, answer ${expected}`);
+
+  const wholeLines = familyItems("number-line-relationships");
+  for (const structure of ["line-midpoint", "line-missing-interval", "line-estimate-position", "line-marked-value"]) {
+    const item = wholeLines.get(structure);
+    close(hiddenValue(item), numericAnswer(item), structure);
+    close(hiddenValue(item, "scaffold"), numericAnswer(item), `${structure} scaffold`);
+  }
+  assert.equal(wholeLines.get("line-adjacent-multiples").promptVisual.unknown, null);
+
+  const fractionLines = familyItems("fraction-number-lines");
+  for (const structure of ["fraction-line-read", "fraction-line-missing", "fraction-line-halfway", "fraction-line-estimate"]) {
+    const item = fractionLines.get(structure);
+    close(hiddenValue(item), fractionAnswer(item), structure);
+    close(hiddenValue(item, "scaffold"), fractionAnswer(item), `${structure} scaffold`);
+  }
+  assert.equal(fractionLines.get("fraction-line-equivalent").promptVisual.unknown, null);
+
+  const decimalLines = familyItems("decimal-number-lines");
+  for (const structure of decimalLines.keys()) {
+    const item = decimalLines.get(structure);
+    close(hiddenValue(item), numericAnswer(item), structure);
+    close(hiddenValue(item, "scaffold"), numericAnswer(item), `${structure} scaffold`);
+  }
+
+  const sequences = familyItems("intelligent-sequences");
+  const missingSequence = sequences.get("sequence-missing-middle");
+  close(hiddenValue(missingSequence, "scaffold"), numericAnswer(missingSequence), "sequence-missing-middle");
 });
 
 test("an independent arithmetic oracle checks generated direct and missing equations", () => {

@@ -31,7 +31,7 @@
 ## Automated verification completed
 
 - TypeScript compilation: passed.
-- Unit/integration suite: 51 passed.
+- Unit/integration suite: 57 passed.
 - Build 3 audit: 21,000 digital questions across 21 challenge values and five modes; 95 families and nine strands encountered.
 - Print audit: 150 seeded questions with aligned answers and printable substitutions.
 - Evidence audit: 4,500 synthetic events compacted to the configured 4,000-event cap; duplicate-safe import and profile mapping covered by tests.

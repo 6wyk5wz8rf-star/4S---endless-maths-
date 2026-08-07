@@ -62,6 +62,7 @@ npm run check
 - `lib/classroom-mastery.mjs` owns classroom schema migration, profiles, presets, evidence, recommendations, import/export and backup logic.
 - `lib/classroom-print.mjs` converts the same generated mathematics into printable equivalents.
 - `app/FluencyApp.tsx` composes the pupil, profile, smartboard and classroom flows.
+- `app/pupil-final.css` is the final pupil layout layer, loaded after legacy styles so setup, practice, class view and summary keep one responsive hierarchy.
 - `app/TeacherTools.tsx` contains the separate four-destination teacher interface.
 - `scripts/audit-fluency.mjs` and `scripts/audit-build3.mjs` are development-only content harnesses; they are not linked from the product.
 
@@ -109,4 +110,4 @@ The service worker does not interrupt an active session. When a newer cached bui
 
 ## Release verification
 
-Automated release checks cover TypeScript, 51 unit/integration tests, a production build, the mathematical continuum, 21,000 Build 3 samples, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.
+Automated release checks cover TypeScript, 57 unit/integration tests, a production build, the mathematical continuum, 21,000 Build 3 samples, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.

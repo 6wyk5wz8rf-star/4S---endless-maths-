@@ -1,4 +1,5 @@
-const CACHE_NAME = "year-4-fluency-build-3-v1";
+const CACHE_PREFIX = "year-4-fluency-";
+const CACHE_NAME = `${CACHE_PREFIX}build-3-v3`;
 const APP_SHELL = ["./", "./index.html", "./assets/app.js", "./assets/index.css", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -8,7 +9,9 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys
+        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+        .map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });

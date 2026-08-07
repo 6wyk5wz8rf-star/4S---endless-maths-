@@ -9,6 +9,7 @@ import {
   challengeLabel,
   createEngine,
   evaluateAnswer,
+  normalisePracticeSelection,
   supportBand,
 } from "@/lib/fluency-engine.mjs";
 import {
@@ -69,7 +70,9 @@ type StrandStat = {
 
 type SessionStats = {
   attempted: number;
+  classQuestions: number;
   firstTry: number;
+  afterAnotherTry: number;
   afterSupport: number;
   modelled: number;
   startedAt: number;
@@ -166,10 +169,10 @@ type QuestionItem = {
 
 type EngineApi = {
   next: () => QuestionItem;
-  setChallenge: (value: number, preserveRange?: boolean) => void;
-  setChallengeRange: (range: { min: number; max: number }) => void;
-  setFocus: (value: string | null) => void;
-  setMode: (value: PracticeMode) => void;
+  setChallenge: (value: number, preserveRange?: boolean) => { mode: PracticeMode; focus: string | null; challenge: number };
+  setChallengeRange: (range: { min: number; max: number }) => { mode: PracticeMode; focus: string | null; challenge: number };
+  setFocus: (value: string | null) => { mode: PracticeMode; focus: string | null; challenge: number };
+  setMode: (value: PracticeMode) => { mode: PracticeMode; focus: string | null; challenge: number };
   recordResponse: (response: {
     item: QuestionItem;
     correct: boolean;
@@ -181,6 +184,7 @@ type EngineApi = {
   }) => void;
   getHistory: () => string[];
   getLearningState: () => Record<string, MasteryState>;
+  getAdaptation: () => { mode: PracticeMode; focus: string | null };
   getState: () => Record<string, unknown>;
   generateNearTransfer: (item: QuestionItem) => QuestionItem | null;
 };
@@ -213,7 +217,9 @@ const FOCUS_OPTIONS = ["Addition", "Subtraction", "Multiplication", "Division", 
 
 const EMPTY_STATS: SessionStats = {
   attempted: 0,
+  classQuestions: 0,
   firstTry: 0,
+  afterAnotherTry: 0,
   afterSupport: 0,
   modelled: 0,
   startedAt: 0,
@@ -394,6 +400,15 @@ function sessionProgressText(attempted: number, session: ActiveSession | null) {
   return `${attempted} ${attempted === 1 ? "question" : "questions"}`;
 }
 
+function timedProgressText(elapsed: number, totalSeconds: number) {
+  const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0;
+  if (progress < 0.2) return "just begun";
+  if (progress < 0.45) return "under halfway";
+  if (progress < 0.7) return "over halfway";
+  if (progress < 0.9) return "nearly finished";
+  return "finishing soon";
+}
+
 const VULGAR_FRACTIONS: Record<string, string> = {
   "½": "one half",
   "⅓": "one third",
@@ -463,9 +478,76 @@ function MathText({ value }: { value: string }) {
   );
 }
 
+function useDialogFocus(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])";
+    const focusFirst = () => {
+      const preferred = dialog.querySelector<HTMLElement>("[autofocus], [data-initial-focus]");
+      (preferred ?? dialog.querySelector<HTMLElement>(focusableSelector) ?? dialog).focus();
+    };
+    const frame = window.requestAnimationFrame(focusFirst);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      dialog.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return dialogRef;
+}
+
+function FractionEntry({ value }: { value: string }) {
+  const [numerator = "", denominator = ""] = value.split("/");
+  if (!value.includes("/")) return <MathText value={value} />;
+
+  const description = denominator
+    ? spokenFraction(numerator, denominator)
+    : `${numerator || "blank"} over blank`;
+
+  return (
+    <span className="fraction fraction--entry" aria-label={description}>
+      <span>{numerator || "\u00a0"}</span>
+      <span>{denominator || "\u00a0"}</span>
+    </span>
+  );
+}
+
 function AxisControl({
   id,
   label,
+  description,
   value,
   setValue,
   anchors,
@@ -475,6 +557,7 @@ function AxisControl({
 }: {
   id: string;
   label: string;
+  description?: string;
   value: number;
   setValue: (value: number) => void;
   anchors: Array<{ value: number; label: string }>;
@@ -485,7 +568,12 @@ function AxisControl({
   return (
     <div className={`axis ${compact ? "axis--compact" : ""}`}>
       <div className="axis__heading">
-        <label htmlFor={id}>{label}</label>
+        {description ? (
+          <div className="axis__title">
+            <label htmlFor={id}>{label}</label>
+            <small>{description}</small>
+          </div>
+        ) : <label htmlFor={id}>{label}</label>}
         <output htmlFor={id}>{nearestLabel(value, anchors)}</output>
       </div>
       <input
@@ -653,8 +741,12 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
     const max = visual.max ?? min + 1;
     const markers = visual.markers ?? visual.points ?? [];
     const span = Math.max(0.0001, max - min);
+    const divisions = visual.ticks ? ` with ${visual.ticks} marked divisions` : "";
+    const markerDescription = markers.length
+      ? markers.map((marker, index) => visual.unknown === index ? `marker ${index + 1} is the missing value` : `marker ${index + 1} is at ${format(marker)}`).join("; ")
+      : "no extra markers";
     return (
-      <div className={`visual-model number-line ${visual.kind === "bead-string" ? "bead-string" : ""}`} role="img" aria-label={`${visual.title}, from ${format(min)} to ${format(max)}`}>
+      <div className={`visual-model number-line ${visual.kind === "bead-string" ? "bead-string" : ""}`} role="img" aria-label={`${accessibleMath(visual.title)}. From ${format(min)} to ${format(max)}${divisions}; ${markerDescription}.`}>
         <div className="number-line__track">
           <i aria-hidden="true" />
           {markers.map((marker, index) => (
@@ -686,39 +778,72 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
   );
 }
 
+function visualsEquivalent(first?: VisualData | null, second?: VisualData | null) {
+  if (!first || !second || first.kind !== second.kind) return false;
+  const { title: _firstTitle, ...firstValues } = first;
+  const { title: _secondTitle, ...secondValues } = second;
+  return JSON.stringify(firstValues) === JSON.stringify(secondValues);
+}
+
+function visibleScaffoldStage(item: QuestionItem | null, stage: number) {
+  if (!item) return Math.max(0, Math.min(4, stage));
+  return stage === 2 && visualsEquivalent(item.promptVisual, item.scaffold.visual) ? 3 : Math.max(0, Math.min(4, stage));
+}
+
+function nextScaffoldStage(item: QuestionItem | null, stage: number) {
+  const visible = visibleScaffoldStage(item, stage);
+  if (visible >= 4) return 4;
+  if (visible === 1 && item && visualsEquivalent(item.promptVisual, item.scaffold.visual)) return 3;
+  return visible + 1;
+}
+
+function scaffoldActionLabel(item: QuestionItem | null, stage: number) {
+  const visible = visibleScaffoldStage(item, stage);
+  if (visible >= 4) return "Model shown";
+  return ({ 1: "Hint", 2: "Show it", 3: "Steps", 4: "Model" } as const)[nextScaffoldStage(item, stage) as 1 | 2 | 3 | 4];
+}
+
+function shouldShowQuestionDisplay(item: QuestionItem) {
+  if (item.type !== "choice") return true;
+  if (/^choose\b/i.test(item.display.trim())) return false;
+  if (item.promptVisual && /^(read\b|correct or find\b)/i.test(item.display.trim())) return false;
+  return true;
+}
+
 function ScaffoldPanel({ item, stage }: { item: QuestionItem; stage: number }) {
-  if (stage <= 0 || !item) return null;
+  const visibleStage = visibleScaffoldStage(item, stage);
+  if (visibleStage <= 0 || !item) return null;
   const scaffold = item.scaffold;
   return (
-    <aside className="scaffold" aria-live="polite">
-      {stage >= 1 && (
+    <aside className={`scaffold scaffold--stage-${visibleStage}`} aria-live="polite">
+      {visibleStage === 1 && (
         <div className="scaffold__hint">
-          <span>Notice</span>
+          <span>Hint</span>
           <p><MathText value={scaffold.hint} /></p>
         </div>
       )}
-      {stage >= 2 && (
+      {visibleStage === 2 && (
         <div className="scaffold__visual">
           <span>See it</span>
           <p className="scaffold__caption">{scaffold.visual.title}</p>
           <VisualScaffold visual={scaffold.visual} />
         </div>
       )}
-      {stage >= 3 && (
+      {visibleStage === 3 && (
         <div className="scaffold__steps">
-          <span>Try these steps</span>
+          <span>Steps</span>
           <ol>
             {scaffold.steps.map((step: string, index: number) => <li key={index}><MathText value={step} /></li>)}
           </ol>
         </div>
       )}
-      {stage >= 4 && (
+      {visibleStage === 4 && (
         <div className="scaffold__model">
-          <span>{scaffold.model.title}</span>
+          <span>Model</span>
           <strong><MathText value={scaffold.model.display} /></strong>
           {scaffold.model.lines.map((line: string, index: number) => <p key={index}><MathText value={line} /></p>)}
           <b>= <MathText value={scaffold.model.answer} /></b>
-          <small>Use the structure, then try the question.</small>
+          <small>Now try the question.</small>
         </div>
       )}
     </aside>
@@ -741,6 +866,7 @@ function NumberPad({
   const add = (character: string) => {
     if (disabled || value.length >= 12) return;
     if ((character === "." && value.includes(".")) || (character === "/" && value.includes("/"))) return;
+    if (character === "/" && !value) return;
     setValue(value + character);
   };
   return (
@@ -749,14 +875,16 @@ function NumberPad({
         <button type="button" onClick={() => add(String(number))} disabled={disabled} key={number}>{number}</button>
       ))}
       <button type="button" className="number-pad__utility" onClick={() => setValue(value.slice(0, -1))} disabled={disabled || !value} aria-label="Delete last digit">⌫</button>
-      <button type="button" onClick={() => add("0")} disabled={disabled}>0</button>
-      <button
-        type="button"
-        className="number-pad__utility"
-        onClick={() => add(allowFraction ? "/" : ".")}
-        disabled={disabled || (!allowDecimal && !allowFraction)}
-        aria-label={allowFraction ? "Fraction line" : "Decimal point"}
-      >{allowFraction ? "⁄" : "."}</button>
+      <button type="button" className={!allowDecimal && !allowFraction ? "number-pad__zero number-pad__zero--wide" : "number-pad__zero"} onClick={() => add("0")} disabled={disabled}>0</button>
+      {(allowDecimal || allowFraction) && (
+        <button
+          type="button"
+          className="number-pad__utility"
+          onClick={() => add(allowFraction ? "/" : ".")}
+          disabled={disabled || (allowFraction ? !value || value.includes("/") : value.includes("."))}
+          aria-label={allowFraction ? "Fraction line" : "Decimal point"}
+        >{allowFraction ? "⁄" : "."}</button>
+      )}
     </div>
   );
 }
@@ -807,16 +935,15 @@ function ModeSelector({
   return (
     <div className={`mode-selector ${expanded ? "is-open" : ""}`}>
       <button type="button" className="mode-selector__trigger" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-        <span>Mode</span><b>{selected.label}</b><i aria-hidden="true">{expanded ? "−" : "+"}</i>
+        <span>Practice options</span><b>{selected.label}</b><i aria-hidden="true">{expanded ? "−" : "+"}</i>
       </button>
       {expanded && (
         <div className="mode-selector__panel">
-          <div className="mode-options" role="radiogroup" aria-label="Practice mode">
+          <div className="mode-options" aria-label="Practice mode">
             {visibleModes.map((item) => (
               <button
                 type="button"
-                role="radio"
-                aria-checked={mode === item.id}
+                aria-pressed={mode === item.id}
                 className={mode === item.id ? "is-selected" : ""}
                 onClick={() => {
                   setMode(item.id);
@@ -843,6 +970,7 @@ function ModeSelector({
 }
 
 function JotPad({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogFocus(onClose);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const history = useRef<ImageData[]>([]);
@@ -875,16 +1003,27 @@ function JotPad({ onClose }: { onClose: () => void }) {
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
       const ratio = Math.max(1, window.devicePixelRatio || 1);
-      canvas.width = Math.round(bounds.width * ratio);
-      canvas.height = Math.round(bounds.height * ratio);
+      const nextWidth = Math.round(bounds.width * ratio);
+      const nextHeight = Math.round(bounds.height * ratio);
+      if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+      const snapshot = canvas.width > 0 && canvas.height > 0 ? document.createElement("canvas") : null;
+      if (snapshot) {
+        snapshot.width = canvas.width;
+        snapshot.height = canvas.height;
+        snapshot.getContext("2d")?.drawImage(canvas, 0, 0);
+      }
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
       const context = canvas.getContext("2d");
       if (context) {
-        context.scale(ratio, ratio);
+        if (snapshot) context.drawImage(snapshot, 0, 0, snapshot.width, snapshot.height, 0, 0, nextWidth, nextHeight);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
         context.lineCap = "round";
         context.lineJoin = "round";
         context.lineWidth = 2.4;
         context.strokeStyle = "#24375d";
       }
+      history.current = [];
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -899,7 +1038,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="jot-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="jot-sheet" role="dialog" aria-modal="true" aria-label="Temporary jotting space">
+      <section ref={dialogRef} className="jot-sheet" role="dialog" aria-modal="true" aria-label="Temporary jotting space" tabIndex={-1}>
         <header><span>Jot</span><div><button type="button" aria-pressed={tool === "pen"} onClick={() => setTool("pen")}>Pen</button><button type="button" aria-pressed={tool === "eraser"} onClick={() => setTool("eraser")}>Eraser</button><button type="button" onClick={undo}>Undo</button><button type="button" onClick={clear}>Clear</button><button type="button" onClick={onClose} aria-label="Close jotting space">Done</button></div></header>
         <canvas
           ref={canvasRef}
@@ -944,15 +1083,16 @@ function SettingsPanel({
   onClose: () => void;
   onReset: () => void;
 }) {
+  const dialogRef = useDialogFocus(onClose);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
         <div className="sheet-heading">
           <div><span>Preferences</span><h2 id="settings-title">Make Fluency comfortable</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" autoFocus>×</button>
         </div>
         <label className="setting-row">
-          <span><b>Larger mathematics</b><small>Increase questions and controls</small></span>
+          <span><b>Larger mathematics</b><small>Increase question text and numerals</small></span>
           <input type="checkbox" checked={preferences.largerText} onChange={(event) => setPreferences({ ...preferences, largerText: event.target.checked })} />
         </label>
         <label className="setting-row">
@@ -978,32 +1118,57 @@ function SettingsPanel({
 }
 
 function ProfilePicker({ profiles, activeId, onSelect, onClose }: { profiles: TeacherProfile[]; activeId?: string; onSelect: (profileId: string | null) => void; onClose: () => void }) {
+  const dialogRef = useDialogFocus(onClose);
   const [query, setQuery] = useState("");
   const visible = profiles.filter((profile) => !profile.archived && profile.displayName.toLowerCase().includes(query.toLowerCase())).sort((left, right) => left.displayName.localeCompare(right.displayName));
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="profile-picker" role="dialog" aria-modal="true" aria-labelledby="profile-picker-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="profile-picker" role="dialog" aria-modal="true" aria-labelledby="profile-picker-title" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
         <header className="sheet-heading"><div><span>On this device</span><h2 id="profile-picker-title">Who is practising?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close profile selection">×</button></header>
         {profiles.length > 12 && <label className="profile-search"><span>Find a profile</span><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} /></label>}
         <div className="profile-grid">
-          <button type="button" className={!activeId ? "is-selected" : ""} onClick={() => { onSelect(null); onClose(); }}><i aria-hidden="true">○</i><span><b>Guest</b><small>No evidence saved</small></span></button>
+          <button type="button" data-initial-focus className={!activeId ? "is-selected" : ""} onClick={() => { onSelect(null); onClose(); }}><i aria-hidden="true">○</i><span><b>Guest</b><small>No evidence saved</small></span></button>
           {visible.map((profile) => <button type="button" className={activeId === profile.id ? "is-selected" : ""} onClick={() => { onSelect(profile.id); onClose(); }} key={profile.id}><i aria-hidden="true">{profile.symbol ?? "●"}</i><span><b>{profile.displayName}</b><small>{profile.classLabel ?? "This device"}</small></span></button>)}
         </div>
-        {activeId && <button type="button" className="text-button profile-not-me" onClick={() => { onSelect(null); onClose(); }}>Not me</button>}
       </section>
     </div>
   );
 }
 
 function TeacherGate({ mode, pin, error, setPin, onNoCode, onSubmit, onClose }: { mode: "choose" | "unlock"; pin: string; error: string; setPin: (value: string) => void; onNoCode: () => void; onSubmit: () => void; onClose: () => void }) {
+  const dialogRef = useDialogFocus(onClose);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="teacher-gate" role="dialog" aria-modal="true" aria-labelledby="teacher-gate-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="teacher-gate" role="dialog" aria-modal="true" aria-labelledby="teacher-gate-title" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
         <header className="sheet-heading"><div><span>Teacher tools</span><h2 id="teacher-gate-title">{mode === "choose" ? "Choose local access" : "Enter the local code"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close teacher access">×</button></header>
         {mode === "choose" && <p>A four-digit code can prevent accidental pupil access on this device. It is not an account or strong security.</p>}
         <label className="teacher-pin-field"><span>Four-digit code{mode === "choose" ? " · optional" : ""}</span><input autoFocus type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} autoComplete="off" value={pin} onChange={(event) => { setPin(event.target.value.replace(/\D/g, "").slice(0, 4)); }} onKeyDown={(event) => { if (event.key === "Enter") onSubmit(); }} /></label>
         {error && <p className="teacher-gate-error" role="alert">{error}</p>}
         <div className="teacher-gate-actions"><button type="button" className="primary-button" onClick={onSubmit}>{mode === "choose" ? "Use this code" : "Open teacher tools"}</button>{mode === "choose" && <button type="button" className="text-button" onClick={onNoCode}>Continue without a code</button>}</div>
+      </section>
+    </div>
+  );
+}
+
+function BoardHelpDialog({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogFocus(onClose);
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section ref={dialogRef} className="board-help" role="dialog" aria-modal="true" aria-labelledby="board-help-title" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
+        <header className="sheet-heading">
+          <div><span>Class view</span><h2 id="board-help-title">Keyboard controls</h2></div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close keyboard controls" autoFocus>×</button>
+        </header>
+        <dl>
+          <div><dt>Space</dt><dd>Reveal next stage</dd></div>
+          <div><dt>N</dt><dd>Next question</dd></div>
+          <div><dt>H</dt><dd>Hint</dd></div>
+          <div><dt>M</dt><dd>Model</dd></div>
+          <div><dt>A</dt><dd>Another way</dd></div>
+          <div><dt>J</dt><dd>Jot</dd></div>
+          <div><dt>F</dt><dd>Full screen</dd></div>
+          <div><dt>Escape</dt><dd>Close or leave class view</dd></div>
+        </dl>
       </section>
     </div>
   );
@@ -1024,6 +1189,7 @@ export default function FluencyApp() {
   const [feedbackText, setFeedbackText] = useState("");
   const [attempts, setAttempts] = useState(0);
   const [scaffoldStage, setScaffoldStage] = useState(0);
+  const [scaffoldScrollRequest, setScaffoldScrollRequest] = useState(0);
   const [controlOpen, setControlOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [jotOpen, setJotOpen] = useState(false);
@@ -1049,6 +1215,7 @@ export default function FluencyApp() {
   const [updateReady, setUpdateReady] = useState<ServiceWorker | null>(null);
   const [boardInvitation, setBoardInvitation] = useState("");
   const [boardHelpOpen, setBoardHelpOpen] = useState(false);
+  const [boardMoreOpen, setBoardMoreOpen] = useState(false);
   const [lastMisconception, setLastMisconception] = useState<string | null>(null);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [fallbackFullscreen, setFallbackFullscreen] = useState(false);
@@ -1058,6 +1225,10 @@ export default function FluencyApp() {
   const effectiveSupportRef = useRef(26);
   const questionStartedAt = useRef(0);
   const statsRef = useRef<SessionStats>(EMPTY_STATS);
+  const questionAttemptedRef = useRef(false);
+  const boardQuestionIdsRef = useRef(new Set<string>());
+  const boardMoreSummaryRef = useRef<HTMLElement | null>(null);
+  const sessionEndPendingRef = useRef(false);
   const updateRequestedRef = useRef(false);
   const fullscreenActive = nativeFullscreen || fallbackFullscreen;
 
@@ -1090,6 +1261,18 @@ export default function FluencyApp() {
     window.addEventListener("keydown", leaveFallbackFullscreen);
     return () => window.removeEventListener("keydown", leaveFallbackFullscreen);
   }, [boardMode, fallbackFullscreen]);
+
+  useEffect(() => {
+    if (scaffoldScrollRequest === 0) return;
+    if (screen !== "practice" || boardMode || scaffoldStage <= 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".question-panel > .scaffold")?.scrollIntoView({
+        behavior: preferences.reducedMotion ? "auto" : "smooth",
+        block: "nearest",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [boardMode, preferences.reducedMotion, scaffoldScrollRequest, scaffoldStage, screen]);
 
   useEffect(() => {
     let saved: { challenge?: number; support?: number; mode?: PracticeMode; focus?: string | null; preferences?: Preferences } | null = null;
@@ -1128,7 +1311,16 @@ export default function FluencyApp() {
       }, { applicationVersion: APP_VERSION });
       setClassroomState(migrated);
       setLearningState(savedLearning && typeof savedLearning === "object" ? savedLearning : {});
-      if (savedActiveSession?.startedAt && Date.now() - Number(savedActiveSession.startedAt) < 48 * 60 * 60 * 1000) setResumeSnapshot(savedActiveSession);
+      if (savedActiveSession?.startedAt && Date.now() - Number(savedActiveSession.startedAt) < 48 * 60 * 60 * 1000) {
+        const resumeProfileId = Array.isArray(savedActiveSession.profileIds) ? savedActiveSession.profileIds[0] : null;
+        const profileStillAvailable = resumeProfileId && migrated.profiles?.some((profile: any) => profile.id === resumeProfileId && !profile.archived);
+        if (profileStillAvailable) {
+          setResumeSnapshot(savedActiveSession);
+          setActiveProfileIds([resumeProfileId]);
+        } else {
+          localStorage.removeItem(ACTIVE_SESSION_KEY);
+        }
+      }
       const shared = decodePracticeConfig(`${window.location.search}${window.location.hash}`);
       if (shared.valid) {
         const config = toTeacherConfig(shared.config);
@@ -1183,12 +1375,24 @@ export default function FluencyApp() {
   }, [stats]);
 
   useEffect(() => {
+    if (screen !== "practice" || !boardMode || !question || !activeSession) return;
+    const presentationId = `${activeSession.id}:${question.id}`;
+    if (boardQuestionIdsRef.current.has(presentationId)) return;
+    boardQuestionIdsRef.current.add(presentationId);
+    setStats((current) => {
+      const next = { ...current, classQuestions: current.classQuestions + 1 };
+      statsRef.current = next;
+      return next;
+    });
+  }, [activeSession, boardMode, question, screen]);
+
+  useEffect(() => {
     if (!hydrated || screen !== "practice" || !activeSession || activeSession.profileIds.length !== 1 || !question) return;
     localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
       ...activeSession,
       question,
       engineState: engineRef.current?.getState() ?? null,
-      stats,
+      stats: { ...stats, elapsed },
       challenge,
       support,
       effectiveSupport,
@@ -1200,7 +1404,7 @@ export default function FluencyApp() {
       feedback,
       savedAt: Date.now(),
     }));
-  }, [activeSession, attempts, challenge, effectiveSupport, feedback, focus, hydrated, independentStreak, mode, question, scaffoldStage, screen, stats, support]);
+  }, [activeSession, attempts, challenge, effectiveSupport, elapsed, feedback, focus, hydrated, independentStreak, mode, question, scaffoldStage, screen, stats, support]);
 
   useEffect(() => () => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
@@ -1216,25 +1420,36 @@ export default function FluencyApp() {
     return stage;
   }, []);
 
+  const syncEngineSelection = useCallback((engine: EngineApi) => {
+    const selection = engine.getAdaptation();
+    setMode(selection.mode);
+    setFocus(selection.focus);
+  }, []);
+
   const nextQuestion = useCallback(() => {
     if (!engineRef.current) return;
     const item = engineRef.current.next();
+    syncEngineSelection(engineRef.current);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(engineRef.current.getHistory()));
     setQuestion(item);
     setAnswer("");
     setSelectedChoice("");
     setAttempts(0);
+    questionAttemptedRef.current = false;
     setFeedback("idle");
     setFeedbackText("");
     setLastMisconception(null);
     setAnotherWayOpen(false);
+    setBoardMoreOpen(false);
+    setBoardInvitation("");
     setBoardAnswerVisible(false);
     const selectedStage = initialStage(effectiveSupportRef.current, item, activeSession?.config);
     setScaffoldStage(item.metadata.connectionKind === "near-transfer" ? Math.min(2, selectedStage) : selectedStage);
     questionStartedAt.current = Date.now();
-  }, [activeSession?.config, initialStage]);
+  }, [activeSession?.config, initialStage, syncEngineSelection]);
 
   const begin = (presetKey?: keyof typeof PRESETS, configured?: TeacherSessionConfig, selectedProfiles = activeProfileIds) => {
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
     let nextChallenge = challenge;
     let nextSupport = support;
     let nextMode = mode;
@@ -1265,10 +1480,14 @@ export default function FluencyApp() {
       setMode(nextMode);
       setFocus(nextFocus);
     }
-    if (nextMode === "focus" && (!nextFocus || (nextFocus === "fractions" && nextChallenge < 20) || (nextFocus === "decimals" && nextChallenge < 38))) {
-      nextFocus = "addition";
-      setFocus(nextFocus);
-    }
+    const selection = normalisePracticeSelection({ mode: nextMode, focus: nextFocus, challenge: nextChallenge });
+    nextChallenge = selection.challenge;
+    nextMode = selection.mode as PracticeMode;
+    nextFocus = selection.focus;
+    setChallenge(selection.challenge);
+    setSupport(nextSupport);
+    setMode(nextMode);
+    setFocus(nextFocus);
     const startedAt = Date.now();
     const sessionSeed = configured?.seedMode === "same" ? (configured.seed?.trim() || "year-4-fluency") : `practice-${startedAt}`;
     let recentSignatures: string[] = [];
@@ -1293,6 +1512,7 @@ export default function FluencyApp() {
     effectiveSupportRef.current = nextSupport;
     setEffectiveSupport(nextSupport);
     const freshStats = { ...EMPTY_STATS, startedAt };
+    boardQuestionIdsRef.current = new Set();
     statsRef.current = freshStats;
     setStats(freshStats);
     setElapsed(0);
@@ -1301,6 +1521,7 @@ export default function FluencyApp() {
     setBoardMode(false);
     setBoardAnswerVisible(false);
     setAnotherWayOpen(false);
+    setBoardMoreOpen(false);
     setBoardInvitation("");
     setLastMisconception(null);
     const session: ActiveSession = {
@@ -1317,11 +1538,13 @@ export default function FluencyApp() {
     setResumeSnapshot(null);
     setScreen("practice");
     const item = engine.next();
+    syncEngineSelection(engine);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(engine.getHistory()));
     setQuestion(item);
     setAnswer("");
     setSelectedChoice("");
     setAttempts(0);
+    questionAttemptedRef.current = false;
     setFeedback("idle");
     setScaffoldStage(initialStage(nextSupport, item, configured ?? null));
     questionStartedAt.current = Date.now();
@@ -1346,32 +1569,65 @@ export default function FluencyApp() {
       ...teacherEngineOptions(savedConfig),
     }) as unknown as EngineApi;
     engineRef.current = engine;
-    const resumedStats = { ...EMPTY_STATS, ...resumeSnapshot.stats, startedAt: Date.now() - Number(resumeSnapshot.stats?.elapsed ?? 0) * 1000 };
-    statsRef.current = resumedStats;
-    setStats(resumedStats);
-    setElapsed(Number(resumeSnapshot.stats?.elapsed ?? 0));
-    setChallenge(savedChallenge);
-    setSupport(savedSupport);
-    setEffectiveSupport(Number(resumeSnapshot.effectiveSupport ?? savedSupport));
-    effectiveSupportRef.current = Number(resumeSnapshot.effectiveSupport ?? savedSupport);
-    setMode(resumeSnapshot.mode ?? "mix");
-    setFocus(resumeSnapshot.focus ?? null);
-    const resumeAfterCompletedAnswer = resumeSnapshot.feedback === "correct";
-    const resumedQuestion = resumeAfterCompletedAnswer ? engine.next() : resumeSnapshot.question;
-    setQuestion(resumedQuestion);
-    setActiveProfileIds(Array.isArray(resumeSnapshot.profileIds) ? resumeSnapshot.profileIds : []);
-    setActiveSession({
+    const savedElapsed = Math.max(0, Number(resumeSnapshot.stats?.elapsed ?? 0));
+    const resumedStats = { ...EMPTY_STATS, ...resumeSnapshot.stats, elapsed: savedElapsed, startedAt: Date.now() - savedElapsed * 1000 };
+    const savedLength = savedConfig?.length ?? resumeSnapshot.length ?? { kind: "open" };
+    const resumedSession: ActiveSession = {
       id: resumeSnapshot.id,
       seed: resumeSnapshot.seed,
       title: resumeSnapshot.title ?? "Practice",
       config: savedConfig,
       profileIds: Array.isArray(resumeSnapshot.profileIds) ? resumeSnapshot.profileIds : [],
       startedAt: resumedStats.startedAt,
-      length: savedConfig?.length ?? { kind: "open" },
-    });
+      length: savedLength,
+    };
+    boardQuestionIdsRef.current = new Set();
+    statsRef.current = resumedStats;
+    setStats(resumedStats);
+    setElapsed(savedElapsed);
+    setChallenge(savedChallenge);
+    setSupport(savedSupport);
+    setEffectiveSupport(Number(resumeSnapshot.effectiveSupport ?? savedSupport));
+    effectiveSupportRef.current = Number(resumeSnapshot.effectiveSupport ?? savedSupport);
+    const resumeAfterCompletedAnswer = resumeSnapshot.feedback === "correct";
+    const sessionAlreadyComplete = (savedLength.kind === "questions" && resumedStats.attempted >= savedLength.value && resumeAfterCompletedAnswer)
+      || (savedLength.kind === "minutes" && savedElapsed >= savedLength.value * 60);
+    setActiveProfileIds(resumedSession.profileIds);
+    setActiveSession(resumedSession);
+    if (sessionAlreadyComplete) {
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      setResumeSnapshot(null);
+      if (resumedStats.attempted === 0 && resumedStats.classQuestions === 0) {
+        setActiveSession(null);
+        setScreen("setup");
+        return;
+      }
+      const endedAt = Date.now();
+      setClassroomState((current: any) => {
+        const next = upsertSession(current, {
+          id: resumedSession.id,
+          profileIds: resumedSession.profileIds,
+          title: resumedSession.title,
+          status: "complete",
+          config: savedConfig ? toStoredConfig(savedConfig) : normalisePracticeConfig({ mode: resumeSnapshot.mode ?? "mix", focus: resumeSnapshot.focus ?? "mixed", challenge: savedChallenge, support: savedSupport, length: savedLength, seedMode: "same", seed: resumedSession.seed }),
+          position: Math.max(resumedStats.attempted, resumedStats.classQuestions),
+          startedAt: resumedSession.startedAt,
+          updatedAt: endedAt,
+          completedAt: endedAt,
+          adaptationState: { effectiveSupport: Number(resumeSnapshot.effectiveSupport ?? savedSupport) },
+        });
+        return { ...next, recentSessionIds: [resumedSession.id, ...next.recentSessionIds.filter((id: string) => id !== resumedSession.id)].slice(0, 12) };
+      });
+      setScreen("summary");
+      return;
+    }
+    const resumedQuestion = resumeAfterCompletedAnswer ? engine.next() : resumeSnapshot.question;
+    syncEngineSelection(engine);
+    setQuestion(resumedQuestion);
     setAnswer("");
     setSelectedChoice("");
     setAttempts(resumeAfterCompletedAnswer ? 0 : Number(resumeSnapshot.attempts ?? 0));
+    questionAttemptedRef.current = !resumeAfterCompletedAnswer && Number(resumeSnapshot.attempts ?? 0) > 0;
     setFeedback("idle");
     setFeedbackText("");
     setScaffoldStage(resumeAfterCompletedAnswer ? initialStage(Number(resumeSnapshot.effectiveSupport ?? savedSupport), resumedQuestion, savedConfig) : Number(resumeSnapshot.scaffoldStage ?? initialStage(Number(resumeSnapshot.effectiveSupport ?? savedSupport), resumedQuestion, savedConfig)));
@@ -1380,7 +1636,30 @@ export default function FluencyApp() {
     questionStartedAt.current = Date.now();
   };
 
-  const recordCompletedQuestion = useCallback((wasFirstTry: boolean, usedSupport: boolean, usedModel: boolean) => {
+  const recordQuestionAttempt = useCallback(() => {
+    if (!question) return;
+    if (questionAttemptedRef.current) return;
+    questionAttemptedRef.current = true;
+    setStats((current) => {
+      const strand = question.strand;
+      const strandStat = current.strands[strand] ?? { attempted: 0, firstTry: 0 };
+      const next = {
+        ...current,
+        attempted: current.attempted + 1,
+        strands: {
+          ...current.strands,
+          [strand]: {
+            attempted: strandStat.attempted + 1,
+            firstTry: strandStat.firstTry,
+          },
+        },
+      };
+      statsRef.current = next;
+      return next;
+    });
+  }, [question]);
+
+  const recordSuccessfulQuestion = useCallback((wasFirstTry: boolean, usedSupport: boolean, usedModel: boolean) => {
     if (!question) return;
     const independentFirstTry = wasFirstTry && !usedSupport;
     setStats((current) => {
@@ -1388,14 +1667,14 @@ export default function FluencyApp() {
       const strandStat = current.strands[strand] ?? { attempted: 0, firstTry: 0 };
       const next = {
         ...current,
-        attempted: current.attempted + 1,
         firstTry: current.firstTry + (independentFirstTry ? 1 : 0),
-        afterSupport: current.afterSupport + (!independentFirstTry && !usedModel ? 1 : 0),
+        afterAnotherTry: current.afterAnotherTry + (!wasFirstTry && !usedSupport ? 1 : 0),
+        afterSupport: current.afterSupport + (usedSupport && !usedModel ? 1 : 0),
         modelled: current.modelled + (usedModel ? 1 : 0),
         strands: {
           ...current.strands,
           [strand]: {
-            attempted: strandStat.attempted + 1,
+            ...strandStat,
             firstTry: strandStat.firstTry + (independentFirstTry ? 1 : 0),
           },
         },
@@ -1412,17 +1691,33 @@ export default function FluencyApp() {
     localStorage.setItem(LEARNING_KEY, JSON.stringify(nextLearning));
   }, []);
 
-  const recordEvidenceEvent = useCallback((wasFirstTry: boolean, usedSupport: boolean, usedModel: boolean, responseMs: number) => {
+  const recordEvidenceEvent = useCallback(({
+    finalCorrect,
+    firstResponseCorrect,
+    usedSupport,
+    usedModel,
+    responseMs,
+    attemptCount,
+    misconception,
+  }: {
+    finalCorrect: boolean;
+    firstResponseCorrect: boolean;
+    usedSupport: boolean;
+    usedModel: boolean;
+    responseMs: number;
+    attemptCount: number;
+    misconception?: string | null;
+  }) => {
     if (!question || !activeSession || activeSession.profileIds.length !== 1 || boardMode) return;
     const profileId = activeSession.profileIds[0];
     const challengeBand = activeSession.config?.challenge.kind === "range"
       ? { min: activeSession.config.challenge.min, max: activeSession.config.challenge.max }
       : { min: activeSession.config?.challenge.kind === "fixed" ? activeSession.config.challenge.value : challenge, max: activeSession.config?.challenge.kind === "fixed" ? activeSession.config.challenge.value : challenge };
     const event = {
-      id: localId("event"),
+      id: `event-${activeSession.id}-${question.id}`.replace(/[^a-zA-Z0-9_.:-]/g, "-").slice(0, 100),
       profileId,
       sessionId: activeSession.id,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(questionStartedAt.current || Date.now()).toISOString(),
       family: question.family,
       strand: question.strand,
       subskill: question.subskill,
@@ -1431,10 +1726,10 @@ export default function FluencyApp() {
       supportAvailable: effectiveSupportRef.current,
       supportUsed: usedModel ? 100 : usedSupport ? Math.max(25, scaffoldStage * 25) : 0,
       representationShown: scaffoldStage >= 2 ? question.scaffold.visual.kind : question.promptVisual?.kind ?? "",
-      attempts: attempts + 1,
-      firstResponseCorrect: wasFirstTry,
-      finalCorrect: true,
-      misconceptionCode: lastMisconception ?? "",
+      attempts: attemptCount,
+      firstResponseCorrect,
+      finalCorrect,
+      misconceptionCode: misconception ?? lastMisconception ?? "",
       relatedSequencePosition: question.metadata.connectionKind ? 1 : 0,
       connectionKind: question.metadata.connectionKind ?? "",
       transfer: question.metadata.connectionKind === "near-transfer",
@@ -1442,8 +1737,14 @@ export default function FluencyApp() {
       sessionSeed: activeSession.seed,
       responseMs,
     };
-    setClassroomState((current: any) => appendEvents(current, [event]));
-  }, [activeSession, attempts, boardMode, challenge, lastMisconception, question, scaffoldStage]);
+    // One question produces one evidence event. Repeated responses replace that
+    // event so an eventual success can update, rather than duplicate, the earlier
+    // incorrect evidence.
+    setClassroomState((current: any) => appendEvents({
+      ...current,
+      events: (current.events ?? []).filter((candidate: any) => candidate.id !== event.id),
+    }, [event]));
+  }, [activeSession, boardMode, challenge, lastMisconception, question, scaffoldStage]);
 
   const submit = useCallback(() => {
     if (!question || feedback === "correct") return;
@@ -1453,10 +1754,11 @@ export default function FluencyApp() {
       setFeedbackText("Enter an answer first.");
       return;
     }
+    recordQuestionAttempt();
     if (result.correct) {
       const wasFirstTry = attempts === 0;
       const usedModel = scaffoldStage >= 4;
-      const usedSupport = scaffoldStage > 0 || !wasFirstTry;
+      const usedSupport = scaffoldStage > 0;
       const responseMs = Date.now() - questionStartedAt.current;
       engineRef.current?.recordResponse({
         item: question,
@@ -1467,8 +1769,15 @@ export default function FluencyApp() {
         responseMs,
       });
       persistLearning();
-      recordCompletedQuestion(wasFirstTry, usedSupport, usedModel);
-      recordEvidenceEvent(wasFirstTry, usedSupport, usedModel, responseMs);
+      recordSuccessfulQuestion(wasFirstTry, usedSupport, usedModel);
+      recordEvidenceEvent({
+        finalCorrect: true,
+        firstResponseCorrect: wasFirstTry,
+        usedSupport,
+        usedModel,
+        responseMs,
+        attemptCount: attempts + 1,
+      });
       setFeedback("correct");
       setFeedbackText(wasFirstTry ? "Correct" : "You found it");
 
@@ -1486,7 +1795,7 @@ export default function FluencyApp() {
         setIndependentStreak(0);
       }
 
-      advanceTimer.current = setTimeout(nextQuestion, preferences.reducedMotion ? 250 : 720);
+      advanceTimer.current = setTimeout(nextQuestion, 1_200);
       return;
     }
 
@@ -1501,6 +1810,15 @@ export default function FluencyApp() {
       misconception: result.misconception,
     });
     persistLearning();
+    recordEvidenceEvent({
+      finalCorrect: false,
+      firstResponseCorrect: false,
+      usedSupport: scaffoldStage > 0,
+      usedModel: scaffoldStage >= 4,
+      responseMs: Date.now() - questionStartedAt.current,
+      attemptCount: nextAttempts,
+      misconception: result.misconception,
+    });
     setLastMisconception(result.misconception ?? null);
     setAttempts(nextAttempts);
     setIndependentStreak(0);
@@ -1514,7 +1832,8 @@ export default function FluencyApp() {
 
     setFeedback("supported");
     setFeedbackText("Let’s make the structure visible");
-    setScaffoldStage((current) => Math.max(current + 1, 2));
+    setScaffoldScrollRequest((current) => current + 1);
+    setScaffoldStage((current) => Math.min(4, Math.max(nextScaffoldStage(question, current), 2)));
     setAnswer("");
     setSelectedChoice("");
     if (nextAttempts === 2 && (!activeSession?.config || activeSession.config.support === "adaptive")) {
@@ -1522,21 +1841,53 @@ export default function FluencyApp() {
       effectiveSupportRef.current = nextEffectiveSupport;
       setEffectiveSupport(nextEffectiveSupport);
     }
-  }, [activeSession, answer, attempts, feedback, independentStreak, nextQuestion, persistLearning, preferences.reducedMotion, question, recordCompletedQuestion, recordEvidenceEvent, scaffoldStage, selectedChoice]);
+  }, [activeSession, answer, attempts, feedback, independentStreak, nextQuestion, persistLearning, question, recordEvidenceEvent, recordQuestionAttempt, recordSuccessfulQuestion, scaffoldStage, selectedChoice]);
 
   useEffect(() => {
     if (screen !== "practice") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (settingsOpen || jotOpen || boardMode || feedback === "correct" || question?.type === "choice") return;
-      if (/^[0-9]$/.test(event.key)) setAnswer((current) => current.length < 12 ? current + event.key : current);
-      if (event.key === "Backspace" || event.key === "Delete") setAnswer((current) => current.slice(0, -1));
-      if (event.key === "." && question?.answerType === "decimal") setAnswer((current) => current.includes(".") ? current : current + ".");
-      if (event.key === "/" && question?.answerType === "fraction") setAnswer((current) => current.includes("/") ? current : current + "/");
-      if (event.key === "Enter") submit();
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
+      const beginEditing = () => {
+        setFeedback("idle");
+        setFeedbackText("");
+      };
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+        beginEditing();
+        setAnswer((current) => current.length < 12 ? current + event.key : current);
+        return;
+      }
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        beginEditing();
+        setAnswer((current) => current.slice(0, -1));
+        return;
+      }
+      if (event.key === "." && question?.answerType === "decimal") {
+        event.preventDefault();
+        beginEditing();
+        setAnswer((current) => current.includes(".") ? current : current + ".");
+        return;
+      }
+      if (event.key === "/" && question?.answerType === "fraction" && answer.length > 0) {
+        event.preventDefault();
+        beginEditing();
+        setAnswer((current) => current.includes("/") ? current : current + "/");
+        return;
+      }
+      const answerReady = question?.answerType === "fraction" ? /^-?\d+\/-?\d+$/.test(answer) : Boolean(answer.trim());
+      if (event.key === "Enter" && answerReady) {
+        if (target?.closest("button, a, summary")) return;
+        event.preventDefault();
+        submit();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [boardMode, feedback, jotOpen, question, screen, settingsOpen, submit]);
+  }, [answer, boardMode, feedback, jotOpen, question, screen, settingsOpen, submit]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -1548,26 +1899,41 @@ export default function FluencyApp() {
   }, [settingsOpen]);
 
   const changeChallenge = (value: number) => {
-    setChallenge(value);
-    engineRef.current?.setChallenge(value, challengePermission === "limited");
+    const selection = engineRef.current?.setChallenge(value, challengePermission === "limited")
+      ?? normalisePracticeSelection({ mode, focus, challenge: value });
+    setChallenge(selection.challenge);
+    setMode(selection.mode as PracticeMode);
+    setFocus(selection.focus);
+  };
+
+  const changeSetupChallenge = (value: number) => {
+    const selection = normalisePracticeSelection({ mode, focus, challenge: value });
+    setChallenge(selection.challenge);
+    setMode(selection.mode as PracticeMode);
+    setFocus(selection.focus);
   };
 
   const changeSupport = (value: number) => {
     setSupport(value);
     setEffectiveSupport(value);
     effectiveSupportRef.current = value;
+    setScaffoldScrollRequest((current) => current + 1);
     setScaffoldStage(initialStage(value, question, activeSession?.config));
   };
 
   const changePracticeMode = (nextMode: PracticeMode) => {
-    setMode(nextMode);
-    engineRef.current?.setMode(nextMode);
+    const selection = engineRef.current?.setMode(nextMode)
+      ?? normalisePracticeSelection({ mode: nextMode, focus, challenge });
+    setMode(selection.mode as PracticeMode);
+    setFocus(selection.focus);
   };
 
   const changePracticeFocus = (nextFocus: string) => {
     const selectedFocus = nextFocus === "mixed" ? null : nextFocus;
-    setFocus(selectedFocus);
-    engineRef.current?.setFocus(selectedFocus);
+    const selection = engineRef.current?.setFocus(selectedFocus)
+      ?? normalisePracticeSelection({ mode, focus: selectedFocus, challenge });
+    setMode(selection.mode as PracticeMode);
+    setFocus(selection.focus);
   };
 
   const enterFullscreen = async () => {
@@ -1609,10 +1975,24 @@ export default function FluencyApp() {
     else void enterFullscreen();
   };
 
-  const revealHint = () => setScaffoldStage((stage) => Math.min(4, stage + 1));
+  const revealHint = () => {
+    setScaffoldScrollRequest((current) => current + 1);
+    setScaffoldStage((stage) => nextScaffoldStage(question, stage));
+  };
 
   const endSession = () => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    sessionEndPendingRef.current = false;
+    if (statsRef.current.attempted === 0 && statsRef.current.classQuestions === 0) {
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      setResumeSnapshot(null);
+      setActiveSession(null);
+      setScreen("setup");
+      setControlOpen(false);
+      setBoardMode(false);
+      if (fullscreenActive) void exitFullscreen();
+      return;
+    }
     const finalStats = { ...statsRef.current, elapsed: Math.max(1, elapsed) };
     statsRef.current = finalStats;
     setStats(finalStats);
@@ -1628,7 +2008,7 @@ export default function FluencyApp() {
           title: activeSession.title,
           status: "complete",
           config: activeSession.config ? toStoredConfig(activeSession.config) : normalisePracticeConfig({ mode, focus: focus ?? "mixed", challenge, support, length: { kind: "open" }, seedMode: "same", seed: activeSession.seed }),
-          position: finalStats.attempted,
+          position: Math.max(finalStats.attempted, finalStats.classQuestions),
           startedAt: activeSession.startedAt,
           updatedAt: endedAt,
           completedAt: endedAt,
@@ -1645,11 +2025,17 @@ export default function FluencyApp() {
 
   useEffect(() => {
     if (screen !== "practice" || !activeSession) return;
-    if (activeSession.length.kind === "questions" && stats.attempted >= activeSession.length.value) endSession();
+    if (activeSession.length.kind === "questions" && stats.attempted >= activeSession.length.value && feedback === "correct") {
+      if (sessionEndPendingRef.current) return;
+      sessionEndPendingRef.current = true;
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+      advanceTimer.current = setTimeout(endSession, 1_200);
+      return;
+    }
     if (activeSession.length.kind === "minutes" && elapsed >= activeSession.length.value * 60) endSession();
     // endSession intentionally follows the live render state; the two primitive counters are the triggers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSession?.id, elapsed, screen, stats.attempted]);
+  }, [activeSession?.id, elapsed, feedback, screen, stats.attempted]);
 
   const resetPreferences = () => {
     if (!window.confirm("Reset saved settings and personal practice memory on this device?")) return;
@@ -1676,46 +2062,78 @@ export default function FluencyApp() {
     const nextBoardMode = !boardMode;
     setBoardMode(nextBoardMode);
     setBoardAnswerVisible(false);
+    setBoardMoreOpen(false);
     if (nextBoardMode) await enterFullscreen();
     else if (fullscreenActive) await exitFullscreen();
   };
 
   const revealBoardStage = () => {
-    if (scaffoldStage < 4) setScaffoldStage((stage) => stage + 1);
-    else setBoardAnswerVisible(true);
+    if (boardAnswerVisible) return;
+    if (visibleScaffoldStage(question, scaffoldStage) < 4) {
+      setScaffoldStage((stage) => nextScaffoldStage(question, stage));
+    } else setBoardAnswerVisible(true);
   };
+
+  const closeBoardMore = useCallback(() => {
+    boardMoreSummaryRef.current?.focus();
+    setBoardMoreOpen(false);
+  }, []);
 
   const showRelatedQuestion = () => {
     if (!question) return;
+    closeBoardMore();
     const related = question.connections?.[0] ?? engineRef.current?.generateNearTransfer(question);
     if (!related) return nextQuestion();
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
     setQuestion({ ...related, id: related.id || localId("board-related") });
+    setAnswer("");
+    setSelectedChoice("");
+    setAttempts(0);
+    questionAttemptedRef.current = false;
+    setFeedback("idle");
+    setFeedbackText("");
+    setLastMisconception(null);
     setScaffoldStage(0);
     setBoardAnswerVisible(false);
     setAnotherWayOpen(false);
     setBoardInvitation("");
+    questionStartedAt.current = Date.now();
+  };
+
+  const nextBoardQuestion = () => {
+    setBoardMoreOpen(false);
+    if (activeSession?.length.kind === "questions" && statsRef.current.classQuestions >= activeSession.length.value) {
+      endSession();
+      return;
+    }
+    nextQuestion();
   };
 
   useEffect(() => {
     if (screen !== "practice" || !boardMode) return;
     const onBoardKey = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      if (event.key === " " || key === "spacebar") { event.preventDefault(); revealBoardStage(); }
-      if (key === "n") nextQuestion();
-      if (key === "h") setScaffoldStage((stage) => Math.max(1, stage));
-      if (key === "m") setScaffoldStage(4);
-      if (key === "a") setAnotherWayOpen((open) => !open);
-      if (key === "j") setJotOpen((open) => !open);
-      if (key === "f") toggleFullscreen();
+      if (boardHelpOpen || jotOpen) return;
       if (event.key === "Escape") {
-        if (boardHelpOpen) setBoardHelpOpen(false);
-        else if (jotOpen) setJotOpen(false);
-        else toggleBoardMode();
+        event.preventDefault();
+        if (boardMoreOpen) closeBoardMore();
+        else void toggleBoardMode();
+        return;
       }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("button, input, select, textarea, a, summary, [contenteditable='true']")) return;
+      const key = event.key.toLowerCase();
+      if (event.key === " " || key === "spacebar") { event.preventDefault(); revealBoardStage(); return; }
+      if (key === "n") { event.preventDefault(); nextBoardQuestion(); return; }
+      if (key === "h") { event.preventDefault(); setScaffoldStage((stage) => Math.max(1, stage)); return; }
+      if (key === "m") { event.preventDefault(); setScaffoldStage(4); return; }
+      if (key === "a" && (question?.scaffold.alternatives.length ?? 0) > 0) { event.preventDefault(); setAnotherWayOpen((open) => !open); return; }
+      if (key === "j") { event.preventDefault(); setJotOpen(true); return; }
+      if (key === "f") { event.preventDefault(); toggleFullscreen(); }
     };
     window.addEventListener("keydown", onBoardKey);
     return () => window.removeEventListener("keydown", onBoardKey);
-  }, [boardHelpOpen, boardMode, jotOpen, nextQuestion, question, scaffoldStage, screen]);
+  }, [boardAnswerVisible, boardHelpOpen, boardMode, boardMoreOpen, closeBoardMore, fullscreenActive, jotOpen, nextQuestion, question, scaffoldStage, screen]);
 
   const myMixAvailable = useMemo(() => Object.values(learningState).reduce((total, skill) => total + (skill.attempts ?? 0), 0) >= 20, [learningState]);
 
@@ -1726,8 +2144,10 @@ export default function FluencyApp() {
       rate: value.attempted ? value.firstTry / value.attempted : 0,
     }));
     const meaningful = rows.filter((row) => row.attempted >= 2);
-    const ranked = (meaningful.length ? meaningful : rows).sort((a, b) => b.rate - a.rate || b.attempted - a.attempted);
-    return { strongest: ranked[0]?.strand ?? "steady thinking", practise: ranked.at(-1)?.strand ?? "mixed fluency" };
+    if (meaningful.length < 2) return null;
+    const ranked = meaningful.sort((a, b) => b.rate - a.rate || b.attempted - a.attempted);
+    if (ranked[0].rate < 0.5 || ranked[0].rate === ranked.at(-1)!.rate) return null;
+    return { strongest: ranked[0].strand, practise: ranked.at(-1)!.strand };
   }, [stats.strands]);
 
   const teacherProfiles = useMemo<TeacherProfile[]>(() => (classroomState.profiles ?? []).map((profile: any) => ({
@@ -2073,6 +2493,16 @@ export default function FluencyApp() {
   }), [classroomState.profiles, classroomState.settings?.profilePrivacy, teacherProfiles]);
 
   const activeProfile = pupilProfiles.find((profile) => profile.id === activeProfileIds[0]);
+  const resumeProfileId = Array.isArray(resumeSnapshot?.profileIds) ? resumeSnapshot.profileIds[0] : null;
+  const resumeProfile = pupilProfiles.find((profile) => profile.id === resumeProfileId && !profile.archived);
+  const visibleResumeSnapshot = resumeSnapshot && resumeProfile && activeProfileIds[0] === resumeProfile.id ? resumeSnapshot : null;
+  const selectPupilProfile = (profileId: string | null) => {
+    if (resumeSnapshot && profileId !== resumeProfileId) {
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      setResumeSnapshot(null);
+    }
+    setActiveProfileIds(profileId ? [profileId] : []);
+  };
   const challengePermission = activeSession?.config?.pupilControls.challenge ?? "unlocked";
   const supportPermission = activeSession?.config?.pupilControls.support ?? "unlocked";
   const modePermission = activeSession?.config?.pupilControls.mode ?? "unlocked";
@@ -2084,6 +2514,33 @@ export default function FluencyApp() {
   const practiceSupportMin = supportPermission === "limited" ? Math.max(0, configuredSupportValue - 18) : 0;
   const practiceSupportMax = supportPermission === "limited" ? Math.min(100, configuredSupportValue + 18) : 100;
   const controlsLocked = challengePermission === "locked" && supportPermission === "locked" && modePermission === "locked" && focusPermission === "locked";
+  const currentScaffoldStage = visibleScaffoldStage(question, scaffoldStage);
+  const boardRevealLabel = boardAnswerVisible
+    ? "Answer shown"
+    : currentScaffoldStage >= 4
+      ? "Reveal answer"
+      : `Reveal ${scaffoldActionLabel(question, scaffoldStage).toLowerCase()}`;
+  const practiceQuestionCount = boardMode ? stats.classQuestions : stats.attempted;
+  const timedLengthMinutes = activeSession?.length.kind === "minutes" ? activeSession.length.value : null;
+  const sessionPrimaryText = timedLengthMinutes ? `${timedLengthMinutes}-minute practice` : sessionProgressText(practiceQuestionCount, activeSession);
+  const sessionSecondaryText = timedLengthMinutes
+    ? preferences.timedPressure
+      ? formatDuration(elapsed)
+      : timedProgressText(elapsed, timedLengthMinutes * 60)
+    : preferences.timedPressure
+      ? formatDuration(elapsed)
+      : "";
+  const classOnlySummary = stats.classQuestions > 0 && stats.attempted === 0;
+  const mixedClassAndPupilSummary = stats.classQuestions > 0 && stats.attempted > 0;
+  const numericAnswerReady = question?.answerType === "fraction"
+    ? /^-?\d+\/-?\d+$/.test(answer)
+    : Boolean(answer.trim());
+  const questionAnnouncement = question
+    ? [question.instruction, shouldShowQuestionDisplay(question) ? question.display : null, question.promptVisual?.title]
+      .filter(Boolean)
+      .map((part) => accessibleMath(String(part)))
+      .join(". ")
+    : "";
 
   const rootClass = [
     "fluency-app",
@@ -2100,7 +2557,7 @@ export default function FluencyApp() {
 
   return (
     <div className={rootClass} data-screen={screen} data-adaptive-support={Math.round(effectiveSupport)}>
-      {screen !== "teacher" && <a className="skip-link" href="#main-content">Skip to the question</a>}
+      {screen !== "teacher" && <a className="skip-link" href="#main-content">Skip to main content</a>}
 
       {updateReady && screen !== "practice" && <aside className="update-banner" role="status"><span>A newer version is ready.</span><button type="button" onClick={() => { updateRequestedRef.current = true; updateReady.postMessage({ type: "SKIP_WAITING" }); }}>Update now</button><button type="button" onClick={() => setUpdateReady(null)}>Later</button></aside>}
 
@@ -2138,7 +2595,11 @@ export default function FluencyApp() {
           onExportBackup={exportBackup}
           onImportEvidence={importEvidence}
           onRestoreBackup={restoreBackup}
-          onClearSessionHistory={() => setClassroomState((current: any) => ({ ...current, sessions: [], recentSessionIds: [] }))}
+          onClearSessionHistory={() => {
+            localStorage.removeItem(ACTIVE_SESSION_KEY);
+            setResumeSnapshot(null);
+            setClassroomState((current: any) => ({ ...current, sessions: [], recentSessionIds: [] }));
+          }}
           onDeleteAllEvidence={() => setClassroomState((current: any) => ({ ...current, events: [] }))}
           onResetApplication={resetCompleteApplication}
           onCreatePracticeLink={createPracticeLink}
@@ -2147,16 +2608,16 @@ export default function FluencyApp() {
       )}
 
       {screen === "share" && sharedSession && (
-        <main className="share-screen" id="main-content">
+        <main className="share-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header"><div className="wordmark"><i aria-hidden="true" />Fluency</div></header>
           <section className="share-summary"><p>Shared practice</p><h1>Ready when you are.</h1><strong>{sharedSession.summary}</strong><button type="button" className="primary-button" onClick={() => begin(undefined, sharedSession.config, [])}>Begin</button><button type="button" className="text-button" onClick={() => { window.history.replaceState(null, "", window.location.pathname); setSharedSession(null); setScreen("setup"); }}>Change the settings</button></section>
         </main>
       )}
 
       {screen === "setup" && (
-        <section className="setup-screen" id="main-content">
+        <section className="setup-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
-            <div className="wordmark"><i aria-hidden="true" />Fluency</div>
+            <div className="wordmark" aria-label="Year 4 Fluency"><i aria-hidden="true" />Year 4</div>
             <div className="setup-header-actions">
               {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
@@ -2165,59 +2626,72 @@ export default function FluencyApp() {
           </header>
 
           <div className="setup-intro">
-            <p>Year 4 mathematics</p>
+            <p>Mathematics practice</p>
             <h1>Fluency</h1>
-            <span className="setup-intro-copy">Set challenge. Set support. Begin.</span>
+            <span className="setup-intro-copy">Choose the challenge and the support. Then begin.</span>
           </div>
 
+          {visibleResumeSnapshot && resumeProfile && (
+            <div className="setup-resume-choice">
+              <button type="button" className="primary-button resume-primary" onClick={resumePractice}>
+                <span>Continue {resumeProfile.displayName}</span>
+                <small>{visibleResumeSnapshot.stats?.attempted ?? 0} questions explored</small>
+              </button>
+              <span>Or set up a new practice below.</span>
+            </div>
+          )}
+
           <div className="setup-controls" aria-label="Practice settings">
-            <AxisControl id="challenge" label="Challenge" value={challenge} setValue={setChallenge} anchors={CHALLENGE_ANCHORS} />
-            <AxisControl id="support" label="Support" value={support} setValue={setSupport} anchors={SUPPORT_ANCHORS} />
-            <ModeSelector
-              mode={mode}
-              setMode={(nextMode) => { setMode(nextMode); if (nextMode !== "focus") setFocus(null); }}
-              focus={focus}
-              setFocus={setFocus}
-              challenge={challenge}
-              myMixAvailable={myMixAvailable}
-              expanded={modeOpen}
-              setExpanded={setModeOpen}
-            />
+            <AxisControl id="challenge" label="Challenge" description="How tricky should the maths be?" value={challenge} setValue={changeSetupChallenge} anchors={CHALLENGE_ANCHORS} />
+            <AxisControl id="support" label="Support" description="How much help should be available?" value={support} setValue={setSupport} anchors={SUPPORT_ANCHORS} />
           </div>
 
           <div className="setup-actions">
-            {resumeSnapshot && <button type="button" className="resume-button" onClick={resumePractice}><span>Continue</span><small>{resumeSnapshot.title ?? "unfinished practice"} · {resumeSnapshot.stats?.attempted ?? 0} explored</small></button>}
-            <button type="button" className="primary-button" onClick={() => begin()}>Begin</button>
-            <div className="quick-starts">
-              <span>Quick start</span>
-              <div className="presets" aria-label="Quick starts">
-                {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
-                  <button type="button" onClick={() => begin(key)} key={key}>
-                    <span>{PRESETS[key].label}</span>
-                    <small>{key === "warmup" ? "Gentle mixed start" : key === "year4" ? "Core Year 4" : key === "stretch" ? "Deep thinking" : "Facts and inverses"}</small>
-                  </button>
-                ))}
-              </div>
+            <button type="button" className="primary-button" onClick={() => begin()}>{visibleResumeSnapshot ? "Begin new practice" : "Begin"}</button>
+            <div className={`setup-options ${modeOpen ? "is-open" : ""}`}>
+              <ModeSelector
+                mode={mode}
+                setMode={(nextMode) => { setMode(nextMode); if (nextMode !== "focus") setFocus(null); }}
+                focus={focus}
+                setFocus={setFocus}
+                challenge={challenge}
+                myMixAvailable={myMixAvailable}
+                expanded={modeOpen}
+                setExpanded={setModeOpen}
+              />
+              {modeOpen && (
+                <div className="quick-starts">
+                  <span>Or begin with a ready-made practice</span>
+                  <div className="presets" aria-label="Ready-made practice">
+                    {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
+                      <button type="button" onClick={() => begin(key)} key={key}>
+                        <span>{PRESETS[key].label}</span>
+                        <small>{key === "warmup" ? "Gentle mixed start" : key === "year4" ? "Core Year 4" : key === "stretch" ? "Deep thinking" : "Facts and inverses"}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <footer className="setup-footer">
-            <span>No scores. No timer pressure.</span>
+            <span>Quiet practice. No scores or timer pressure.</span>
             <button type="button" className="teacher-entry" onClick={openTeacherTools}>Teacher</button>
           </footer>
         </section>
       )}
 
       {screen === "practice" && question && (
-        <section className="practice-screen" id="main-content">
+        <section className="practice-screen" id="main-content" tabIndex={-1}>
           <header className="practice-header">
             <button type="button" className="header-text-button header-text-button--finish" onClick={endSession}>Finish</button>
-            <div className="session-pulse" aria-label={`${sessionProgressText(stats.attempted, activeSession)} explored${preferences.timedPressure ? ` in ${formatDuration(elapsed)}` : ""}`}>
-              <span>{sessionProgressText(stats.attempted, activeSession)}</span>
-              {preferences.timedPressure && <><i /><span>{formatDuration(elapsed)}</span></>}
+            <div className="session-pulse" aria-label={`${sessionPrimaryText}${sessionSecondaryText ? `. ${sessionSecondaryText}` : ""}`}>
+              <span>{sessionPrimaryText}</span>
+              {sessionSecondaryText && <><i /><span>{sessionSecondaryText}</span></>}
             </div>
             <div className="practice-tools">
-              <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed={boardMode}>{boardMode ? "Exit board" : "Board"}</button>
+              <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed={boardMode} aria-label={boardMode ? "Exit teacher-led class view" : "Enter teacher-led class view"} title="Teacher-led class view">{boardMode ? "Exit teaching" : "Teach"}</button>
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
@@ -2242,13 +2716,12 @@ export default function FluencyApp() {
           </div>
 
           <div className={`practice-workspace scaffold-stage-${scaffoldStage}`}>
-            <ScaffoldPanel item={question} stage={scaffoldStage} />
-
             <article
               className="question-panel"
               aria-labelledby={question.instruction ? "question-instruction" : undefined}
               aria-label={question.instruction ? undefined : `Question: ${accessibleMath(question.display)}`}
             >
+              <div className="pupil-sr-only" aria-live="polite" aria-atomic="true">{questionAnnouncement}</div>
               {boardMode && (
                 <div className="question-context" aria-label={`${question.strand}, ${challengeLabel(question.difficulty)}, ${MODES.find((item) => item.id === mode)?.label ?? "Mix"}`}>
                   <span>{question.strand}</span>
@@ -2260,13 +2733,15 @@ export default function FluencyApp() {
               )}
               {boardMode && boardInvitation && <div className="board-invitation" role="status">{boardInvitation}</div>}
               {question.instruction && <p id="question-instruction" className="question-instruction"><MathText value={question.instruction} /></p>}
-              {!(question.type === "choice" && question.display.startsWith("Choose")) && (
+              {shouldShowQuestionDisplay(question) && (
                 <div className={`question-math ${questionMathScale(question.display)}`} aria-label={`${accessibleMath(question.instruction ?? "Calculate")}: ${accessibleMath(question.display)}`}>
                   <MathText value={question.display} />
                 </div>
               )}
 
               {question.promptVisual && <div className="prompt-visual"><VisualScaffold visual={question.promptVisual} /></div>}
+
+              <ScaffoldPanel item={question} stage={scaffoldStage} />
 
               {anotherWayOpen && question.scaffold.alternatives.length > 0 && (
                 <div className="another-way" aria-live="polite">
@@ -2275,99 +2750,140 @@ export default function FluencyApp() {
                 </div>
               )}
 
-              {!boardMode && (question.type === "choice" ? (
-                <div className="choice-grid" role="radiogroup" aria-label="Choose an answer">
-                  {(question.choices ?? []).map((choice: string) => (
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={selectedChoice === choice}
-                      className={selectedChoice === choice ? "is-selected" : ""}
-                      onClick={() => { setSelectedChoice(choice); setFeedback("idle"); setFeedbackText(""); }}
-                      disabled={feedback === "correct"}
-                      key={choice}
-                    ><MathText value={choice} /></button>
-                  ))}
-                </div>
-              ) : (
-                <div className="answer-display" data-empty={!answer} aria-live="polite">
-                  {answer ? <MathText value={answer} /> : <span>?</span>}
-                </div>
-              ))}
-
               {boardMode && boardAnswerVisible && (
                 <div className="board-answer" role="status"><span>Answer</span><strong><MathText value={question.answer} /></strong></div>
               )}
 
-              {!boardMode && <div className={`feedback-line feedback-line--${feedback}`} role="status" aria-live="polite">
-                {feedback === "correct" && <b aria-hidden="true">✓</b>}
-                <span>{feedbackText}</span>
-              </div>}
-
               {!boardMode && question.type !== "choice" && (
-                <NumberPad
-                  value={answer}
-                  setValue={(value) => { setAnswer(value); setFeedback("idle"); setFeedbackText(""); }}
-                  allowDecimal={question.answerType === "decimal"}
-                  allowFraction={question.answerType === "fraction"}
-                  disabled={feedback === "correct"}
-                />
-              )}
-
-              {boardMode ? (
-                <div className="board-controls">
-                  <button type="button" onClick={revealBoardStage}>Reveal</button>
-                  <button type="button" onClick={() => setScaffoldStage((stage) => Math.max(1, stage))}>Hint</button>
-                  <button type="button" onClick={() => setScaffoldStage(4)}>Model</button>
-                  {question.scaffold.alternatives.length > 0 && <button type="button" onClick={() => setAnotherWayOpen((open) => !open)}>Another way</button>}
-                  <button type="button" onClick={showRelatedQuestion}>Related</button>
-                  <button type="button" onClick={() => setJotOpen(true)}>Jot</button>
-                  <details className="board-routines"><summary>Prompt</summary><div>{["Think", "Show me", "Explain", "Turn and talk", "Estimate first", "Agree or disagree"].map((invitation) => <button type="button" key={invitation} onClick={() => setBoardInvitation(invitation)}>{invitation}</button>)}</div></details>
-                  <button type="button" onClick={() => setBoardHelpOpen(true)} aria-label="Show keyboard shortcuts">?</button>
-                  <button type="button" className="is-primary" onClick={nextQuestion}>Next</button>
-                </div>
-              ) : (
-                <>
+                <div className="response-dock">
+                  <div className="answer-display" data-empty={!answer} aria-live="polite">
+                    {answer
+                      ? question.answerType === "fraction"
+                        ? <FractionEntry value={answer} />
+                        : <MathText value={answer} />
+                      : <span>?</span>}
+                  </div>
+                  <div className={`feedback-line feedback-line--${feedback}`} role="status" aria-live="polite">
+                    {feedback === "correct" && <b aria-hidden="true">✓</b>}
+                    <span>{feedbackText}</span>
+                  </div>
+                  <NumberPad
+                    value={answer}
+                    setValue={(value) => { setAnswer(value); setFeedback("idle"); setFeedbackText(""); }}
+                    allowDecimal={question.answerType === "decimal"}
+                    allowFraction={question.answerType === "fraction"}
+                    disabled={feedback === "correct"}
+                  />
                   <div className="question-actions">
-                    <button type="button" className="hint-button" onClick={revealHint} disabled={scaffoldStage >= 4 || feedback === "correct"}>
-                      {scaffoldStage === 0 ? "Hint" : scaffoldStage === 3 ? "Model" : scaffoldStage >= 4 ? "Model shown" : "More help"}
+                    <button type="button" className="hint-button" onClick={revealHint} disabled={currentScaffoldStage >= 4 || feedback === "correct"}>
+                      {scaffoldActionLabel(question, scaffoldStage)}
                     </button>
-                    <button type="button" className="check-button" onClick={submit} disabled={feedback === "correct"}>Check</button>
+                    <button type="button" className="check-button" onClick={submit} disabled={feedback === "correct" || !numericAnswerReady}>Check</button>
                   </div>
                   <div className="question-secondary-actions">
                     <button type="button" onClick={() => setJotOpen(true)}>Jot</button>
-                    {question.scaffold.alternatives.length > 0 && (scaffoldStage > 0 || feedback === "supported") && (
+                    {question.scaffold.alternatives.length > 0 && (currentScaffoldStage > 0 || feedback === "supported") && (
+                      <button type="button" onClick={() => setAnotherWayOpen((open) => !open)}>{anotherWayOpen ? "Hide other way" : "Another way"}</button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!boardMode && question.type === "choice" && (
+                <>
+                  <div className="choice-grid" aria-label="Choose an answer">
+                    {(question.choices ?? []).map((choice: string) => (
+                      <button
+                        type="button"
+                        aria-pressed={selectedChoice === choice}
+                        className={selectedChoice === choice ? "is-selected" : ""}
+                        onClick={() => { setSelectedChoice(choice); setFeedback("idle"); setFeedbackText(""); }}
+                        disabled={feedback === "correct"}
+                        key={choice}
+                      ><MathText value={choice} /></button>
+                    ))}
+                  </div>
+                  <div className={`feedback-line feedback-line--${feedback}`} role="status" aria-live="polite">
+                    {feedback === "correct" && <b aria-hidden="true">✓</b>}
+                    <span>{feedbackText}</span>
+                  </div>
+                  <div className="question-actions question-actions--choice">
+                    <button type="button" className="hint-button" onClick={revealHint} disabled={currentScaffoldStage >= 4 || feedback === "correct"}>
+                      {scaffoldActionLabel(question, scaffoldStage)}
+                    </button>
+                    <button type="button" className="check-button" onClick={submit} disabled={feedback === "correct" || !selectedChoice}>Check</button>
+                  </div>
+                  <div className="question-secondary-actions">
+                    <button type="button" onClick={() => setJotOpen(true)}>Jot</button>
+                    {question.scaffold.alternatives.length > 0 && (currentScaffoldStage > 0 || feedback === "supported") && (
                       <button type="button" onClick={() => setAnotherWayOpen((open) => !open)}>{anotherWayOpen ? "Hide other way" : "Another way"}</button>
                     )}
                   </div>
                 </>
               )}
+
+              {boardMode ? (
+                <div className="board-controls">
+                  <button type="button" onClick={revealBoardStage} disabled={boardAnswerVisible}>{boardRevealLabel}</button>
+                  <button type="button" onClick={() => setScaffoldStage(4)} disabled={currentScaffoldStage >= 4}>{currentScaffoldStage >= 4 ? "Model shown" : "Model"}</button>
+                  <details className="board-more" open={boardMoreOpen} onToggle={(event) => setBoardMoreOpen(event.currentTarget.open)}>
+                    <summary ref={boardMoreSummaryRef}>More</summary>
+                    <div className="board-more__panel">
+                      {question.scaffold.alternatives.length > 0 && <button type="button" onClick={() => { setAnotherWayOpen((open) => !open); closeBoardMore(); }}>Another way</button>}
+                      <button type="button" onClick={showRelatedQuestion}>Related question</button>
+                      <button type="button" onClick={() => { closeBoardMore(); setJotOpen(true); }}>Jot</button>
+                      <button type="button" onClick={() => { closeBoardMore(); setBoardHelpOpen(true); }}>Keyboard help</button>
+                      <span>Show a class prompt</span>
+                      <div className="board-more__prompts">{["Think", "Show me", "Explain", "Turn and talk", "Estimate first", "Agree or disagree"].map((invitation) => <button type="button" key={invitation} onClick={() => { setBoardInvitation(invitation); closeBoardMore(); }}>{invitation}</button>)}</div>
+                    </div>
+                  </details>
+                  <button type="button" className="is-primary" onClick={nextBoardQuestion}>{activeSession?.length.kind === "questions" && stats.classQuestions >= activeSession.length.value ? "Finish" : "Next"}</button>
+                </div>
+              ) : null}
             </article>
           </div>
         </section>
       )}
 
       {screen === "summary" && (
-        <section className="summary-screen" id="main-content">
+        <section className="summary-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
             <div className="wordmark"><i aria-hidden="true" />Fluency</div>
           </header>
           <div className="summary-copy">
-            <p>Practice</p>
-            <h1>Session complete.</h1>
+            <p>{classOnlySummary ? "Class practice" : "Practice"}</p>
+            <h1>{classOnlySummary ? "Class practice complete." : "Session complete."}</h1>
           </div>
-          <div className="summary-numbers" aria-label="Session summary">
-            <div><strong>{stats.attempted}</strong><span>questions explored</span></div>
-            <div><strong>{stats.firstTry}</strong><span>first try</span></div>
-            <div><strong>{stats.afterSupport}</strong><span>after support</span></div>
-            <div><strong>{stats.modelled}</strong><span>after a model</span></div>
+          <div className={`summary-numbers ${mixedClassAndPupilSummary ? "summary-numbers--mixed" : ""}`} aria-label="Session summary">
+            {classOnlySummary ? (
+              <div className="summary-numbers__class"><strong>{stats.classQuestions}</strong><span>questions shown</span></div>
+            ) : (
+              <>
+                <div><strong>{stats.attempted}</strong><span>questions explored</span></div>
+                <div><strong>{stats.firstTry}</strong><span>first try independently</span></div>
+                <div><strong>{stats.afterAnotherTry}</strong><span>after another try</span></div>
+                <div><strong>{stats.afterSupport}</strong><span>with a hint or steps</span></div>
+                <div><strong>{stats.modelled}</strong><span>after a worked model</span></div>
+                {mixedClassAndPupilSummary && <div><strong>{stats.classQuestions}</strong><span>shown in class view</span></div>}
+              </>
+            )}
           </div>
-          <div className="summary-notes">
-            <div><span>Strongest today</span><b>{strandSummary.strongest}</b></div>
+          {!classOnlySummary && strandSummary && <div className="summary-notes">
+            <div><span>Strong today</span><b>{strandSummary.strongest}</b></div>
             <div><span>Bring back soon</span><b>{strandSummary.practise}</b></div>
-          </div>
+          </div>}
           <div className="summary-actions">
-            <button type="button" className="primary-button" onClick={() => begin(undefined, activeSession?.config ?? undefined, activeSession?.profileIds ?? activeProfileIds)}>Practise again</button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                begin(undefined, activeSession?.config ?? undefined, activeSession?.profileIds ?? activeProfileIds);
+                if (classOnlySummary) {
+                  setBoardMode(true);
+                  void enterFullscreen();
+                }
+              }}
+            >{classOnlySummary ? "Teach again" : "Practise again"}</button>
             <button type="button" className="text-button" onClick={() => { setActiveSession(null); setScreen("setup"); }}>Finish</button>
           </div>
         </section>
@@ -2375,9 +2891,9 @@ export default function FluencyApp() {
 
       {settingsOpen && <SettingsPanel preferences={preferences} setPreferences={setPreferences} onClose={() => setSettingsOpen(false)} onReset={resetPreferences} />}
       {jotOpen && <JotPad onClose={() => setJotOpen(false)} />}
-      {profilePickerOpen && <ProfilePicker profiles={pupilProfiles} activeId={activeProfileIds[0]} onSelect={(profileId) => setActiveProfileIds(profileId ? [profileId] : [])} onClose={() => setProfilePickerOpen(false)} />}
+      {profilePickerOpen && <ProfilePicker profiles={pupilProfiles} activeId={activeProfileIds[0]} onSelect={selectPupilProfile} onClose={() => setProfilePickerOpen(false)} />}
       {teacherGateOpen && <TeacherGate mode={teacherGateMode} pin={teacherPin} error={teacherGateError} setPin={(value) => { setTeacherPin(value); setTeacherGateError(""); }} onNoCode={enterTeacherToolsWithoutCode} onSubmit={submitTeacherPin} onClose={() => setTeacherGateOpen(false)} />}
-      {boardHelpOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setBoardHelpOpen(false)}><section className="board-help" role="dialog" aria-modal="true" aria-labelledby="board-help-title" onMouseDown={(event) => event.stopPropagation()}><header className="sheet-heading"><div><span>Smartboard</span><h2 id="board-help-title">Keyboard controls</h2></div><button type="button" className="icon-button" onClick={() => setBoardHelpOpen(false)} aria-label="Close keyboard controls">×</button></header><dl><div><dt>Space</dt><dd>Reveal next stage</dd></div><div><dt>N</dt><dd>Next question</dd></div><div><dt>H</dt><dd>Hint</dd></div><div><dt>M</dt><dd>Model</dd></div><div><dt>A</dt><dd>Another way</dd></div><div><dt>J</dt><dd>Jot</dd></div><div><dt>F</dt><dd>Full screen</dd></div><div><dt>Escape</dt><dd>Close or leave board</dd></div></dl></section></div>}
+      {boardHelpOpen && <BoardHelpDialog onClose={() => setBoardHelpOpen(false)} />}
     </div>
   );
 }
