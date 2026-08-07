@@ -2141,6 +2141,200 @@ button:disabled {
   .board-mode .board-routines summary { font-size: .82rem; min-height: 44px; min-width: 78px; padding-inline: 12px; }
 }
 
+/* RELEASE POLISH · explicit full screen and one calm visual language.
+   These rules intentionally come last: clarity wins over legacy decoration. */
+.fullscreen-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: .86rem;
+  font-weight: 680;
+  gap: 8px;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 15px;
+  white-space: nowrap;
+}
+
+.fullscreen-button svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 18px;
+}
+
+.fullscreen-button:hover,
+.fullscreen-button[aria-pressed="true"] {
+  background: rgba(220, 228, 232, .56);
+  border-color: var(--blue-faded);
+  color: var(--indigo-deep);
+}
+
+:fullscreen .practice-tools,
+.fluency-app.is-fullscreen .practice-tools {
+  opacity: .78;
+}
+
+:fullscreen .practice-tools:hover,
+:fullscreen .practice-tools:focus-within,
+.fluency-app.is-fullscreen .practice-tools:hover,
+.fluency-app.is-fullscreen .practice-tools:focus-within {
+  opacity: 1;
+}
+
+.fluency-app.app-fullscreen {
+  height: 100dvh;
+  inset: 0;
+  overflow: auto;
+  position: fixed;
+  width: 100%;
+  z-index: 1000;
+}
+
+.fluency-app.is-fullscreen,
+:fullscreen {
+  background: var(--paper);
+}
+
+.setup-controls {
+  border-block: 1px solid var(--line);
+  padding-block: clamp(30px, 4.2vh, 44px);
+}
+
+.mode-selector__trigger {
+  padding-inline: 2px;
+}
+
+.quick-starts > span {
+  padding-left: 2px;
+  text-align: left;
+}
+
+.presets {
+  border-block: 1px solid var(--line);
+  gap: 0;
+}
+
+.presets button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid var(--line);
+  min-height: 76px;
+  padding: 14px 16px;
+}
+
+.presets button:last-child {
+  border-right: 0;
+}
+
+.presets button:hover {
+  background: rgba(220, 228, 232, .34);
+}
+
+.primary-button:active,
+.check-button:active {
+  transform: scale(.985);
+}
+
+.number-pad button {
+  background: rgba(255, 254, 250, .78);
+  border-color: rgba(185, 188, 192, .72);
+  box-shadow: none;
+}
+
+.number-pad button:hover {
+  background: rgba(220, 228, 232, .62);
+  border-color: var(--blue-faded);
+}
+
+.number-pad button:active {
+  background: var(--blue-pale);
+  transform: none;
+}
+
+.choice-grid button.is-selected {
+  box-shadow: none;
+}
+
+.scaffold {
+  border-top: 1px solid var(--line);
+  gap: 0;
+}
+
+.scaffold > div {
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  border-left: 0;
+  padding-block: 20px;
+}
+
+.scaffold__model {
+  background: rgba(234, 213, 199, .14) !important;
+  border-left: 3px solid var(--accent) !important;
+}
+
+@media (max-width: 620px) {
+  .setup-header-actions,
+  .practice-tools {
+    gap: 3px;
+  }
+
+  .fullscreen-button,
+  .header-text-button,
+  .board-button {
+    padding-inline: 10px;
+  }
+
+  .setup-controls {
+    padding-block: 28px;
+  }
+
+  .presets button:nth-child(1),
+  .presets button:nth-child(2) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .presets button:nth-child(2),
+  .presets button:nth-child(4) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 390px) {
+  .fullscreen-button {
+    min-width: 46px;
+    padding: 0;
+  }
+
+  .fullscreen-button span {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 621px) {
+  .setup-controls {
+    padding-block: 16px;
+  }
+
+  .fullscreen-button {
+    min-height: 44px;
+  }
+}
+
+@media print {
+  .fullscreen-button {
+    display: none !important;
+  }
+}
+
 .control-drawer__selects {
   display: grid;
   gap: 16px;

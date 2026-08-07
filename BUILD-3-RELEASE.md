@@ -14,8 +14,10 @@
 - Removed the pupil screen's wide split layout and excessive dead space.
 - Increased mathematics, numerals, keypad controls, slider handles and important labels at iPad and smartboard sizes.
 - Replaced the clickable logo and unexplained ellipsis with explicit **Finish** and **Settings** controls; labels now state what every header action does.
+- Added an explicit **Full screen** control to setup and practice, with a labelled exit state, native and WebKit full-screen support, and a safe full-viewport fallback for browsers that reserve the native API.
 - Labelled the optional **Mode** and **Quick start** areas directly, simplified the setup instruction to match the two controls, and changed the keypad backspace to the familiar delete symbol.
 - Removed the primary-button drop shadow and the boxed summary cards. Session evidence now reads as one quiet, ruled row rather than a dashboard of floating panels.
+- Replaced the remaining preset-card grid and stacked scaffold cards with quieter ruled structures, flattened the number pad, and kept the full-screen exit control legible without competing with the mathematics.
 - Kept the Teacher entry discoverable at narrow widths while removing nonessential footer copy, and raised remaining mathematical-model labels to a practical iPad reading size.
 - Removed nonessential pupil question metadata and added content-aware equation sizing, so short calculations dominate while longer comparisons and mathematical statements remain balanced and readable.
 - Added a short-landscape response layout so the Check action remains visible without shrinking the keypad.
