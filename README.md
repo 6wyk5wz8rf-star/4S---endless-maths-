@@ -1,62 +1,31 @@
 # Year 4 Fluency
 
-A calm, endless arithmetic and mathematical fluency environment for Year 4
-children. Challenge controls the mathematics; Support independently controls
-how much mathematical structure is exposed.
+[Open Year 4 Fluency](https://6wyk5wz8rf-star.github.io/4S---endless-maths-/)
 
-## Build 1
+A calm, endless mathematical fluency environment for Year 4 children. Challenge controls the mathematics. Support independently controls how much of the mathematical structure is exposed.
 
-The Infinite Practice Engine includes:
+Build 2 adds a deeper fluency intelligence layer while preserving the same quiet pupil experience:
 
-- a continuous foundation-to-deep-challenge progression
-- 50 reusable mathematical question families
-- seeded, validated and repetition-aware generation
-- independent, prompted, guided, stepped and modelled scaffolding
-- numerical, decimal, fraction and multiple-choice answer systems
-- calm feedback and adaptive scaffold fading
-- local preferences and session summaries with no pupil account
-- responsive, touch, keyboard, screen-reader and reduced-motion support
-- offline caching and an installable web app manifest
+- 95 procedural generator families and more than 300 mathematical structures
+- connected facts, equivalence, derived facts and efficient strategy choices
+- spaced retrieval, interleaving and adaptation inside the selected challenge band
+- local, gradual mastery signals with confidence decay
+- Mix, Focus, Quick Fire, Think and optional My Mix practice
+- number lines, arrays, groups, place value, fraction and decimal models
+- model → near-transfer scaffold sequences
+- temporary touch jotting and a restrained smartboard mode
+- responsive, keyboard, touch, screen-reader and reduced-motion support
+- no pupil account, login, server or tracking
 
-Build 1 deliberately focuses on the mathematical engine and core practice
-interaction. Teacher dashboards, assignments and Build 2 modes are not
-included.
+The repository root contains a complete static browser build. GitHub Pages can therefore open the app directly without asking a teacher or pupil to install anything. JavaScript runs in the browser; Node.js is only part of the automated development and test workflow.
 
-## Run locally
+## Development
 
-Requires Node.js 22.13 or later.
-
-```bash
+```sh
 npm ci
-npm run dev
+npm test
+npm run audit:math
+npm run export:github
 ```
 
-Open the local URL shown by Vite.
-
-## Verify
-
-```bash
-npm run check
-```
-
-The automated audit validates all generator families, reproducible randomness,
-division and fraction constraints, support adaptation, duplicate suppression,
-difficulty progression, 2,200 challenge-level samples and a 5,000-question
-endurance session.
-
-## Architecture
-
-- `lib/fluency-engine.mjs` — generation, validation, difficulty, scaffolds and
-  seeded session sequencing
-- `app/FluencyApp.tsx` — interaction, evaluation, feedback, persistence and
-  accessible input
-- `app/globals.css` — responsive classroom interface
-- `tests/fluency-engine.test.mjs` — mathematical and endurance audits
-- `static-site/` — Vite entry point for the deployable application
-
-The GitHub Actions workflow tests the engine, builds the static app and deploys
-`pages-dist` to GitHub Pages when changes reach `main`.
-
-## Live preview
-
-[Open Year 4 Fluency](https://year-4-fluency.willmorgandiary.chatgpt.site)
+`npm run export:github` rebuilds the static app and synchronises it to the repository root. The GitHub Actions workflow also builds and deploys `pages-dist` whenever `main` changes.

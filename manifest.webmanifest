@@ -1,0 +1,17 @@
+{
+  "name": "Year 4 Fluency",
+  "short_name": "Fluency",
+  "description": "Calm, endless and intelligently scaffolded Year 4 mathematics practice.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f1e8",
+  "theme_color": "#24375d",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

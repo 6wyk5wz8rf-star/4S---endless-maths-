@@ -15,6 +15,13 @@ export default defineConfig({
   build: {
     outDir: "../pages-dist",
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/app.js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: "assets/[name][extname]",
+      },
+    },
   },
 });
