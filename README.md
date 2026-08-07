@@ -28,4 +28,4 @@ npm run audit:math
 npm run export:github
 ```
 
-`npm run export:github` rebuilds the static app and synchronises it to the repository root. The GitHub Actions workflow also builds and deploys `pages-dist` whenever `main` changes.
+`npm run export:github` rebuilds the static app and synchronises it to the repository root. GitHub Pages publishes that browser-ready root from the repository's Pages source branch.
