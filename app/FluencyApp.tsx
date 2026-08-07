@@ -748,7 +748,7 @@ function NumberPad({
       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
         <button type="button" onClick={() => add(String(number))} disabled={disabled} key={number}>{number}</button>
       ))}
-      <button type="button" className="number-pad__utility" onClick={() => setValue(value.slice(0, -1))} disabled={disabled || !value} aria-label="Delete last digit">←</button>
+      <button type="button" className="number-pad__utility" onClick={() => setValue(value.slice(0, -1))} disabled={disabled || !value} aria-label="Delete last digit">⌫</button>
       <button type="button" onClick={() => add("0")} disabled={disabled}>0</button>
       <button
         type="button"
@@ -786,7 +786,7 @@ function ModeSelector({
   return (
     <div className={`mode-selector ${expanded ? "is-open" : ""}`}>
       <button type="button" className="mode-selector__trigger" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-        <span>Practice</span><b>{selected.label}</b><i aria-hidden="true">{expanded ? "−" : "+"}</i>
+        <span>Mode</span><b>{selected.label}</b><i aria-hidden="true">{expanded ? "−" : "+"}</i>
       </button>
       {expanded && (
         <div className="mode-selector__panel">
@@ -2068,14 +2068,14 @@ export default function FluencyApp() {
             <div className="wordmark"><i aria-hidden="true" />Fluency</div>
             <div className="setup-header-actions">
               {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
-              <button type="button" className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings">•••</button>
+              <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
           </header>
 
           <div className="setup-intro">
             <p>Year 4 mathematics</p>
             <h1>Fluency</h1>
-            <span className="setup-intro-copy">Choose the mathematics. Choose the support. Begin.</span>
+            <span className="setup-intro-copy">Set challenge. Set support. Begin.</span>
           </div>
 
           <div className="setup-controls" aria-label="Practice settings">
@@ -2096,13 +2096,16 @@ export default function FluencyApp() {
           <div className="setup-actions">
             {resumeSnapshot && <button type="button" className="resume-button" onClick={resumePractice}><span>Continue</span><small>{resumeSnapshot.title ?? "unfinished practice"} · {resumeSnapshot.stats?.attempted ?? 0} explored</small></button>}
             <button type="button" className="primary-button" onClick={() => begin()}>Begin</button>
-            <div className="presets" aria-label="Quick starts">
-              {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
-                <button type="button" onClick={() => begin(key)} key={key}>
-                  <span>{PRESETS[key].label}</span>
-                  <small>{key === "warmup" ? "Gentle mixed start" : key === "year4" ? "Core Year 4" : key === "stretch" ? "Deep thinking" : "Facts and inverses"}</small>
-                </button>
-              ))}
+            <div className="quick-starts">
+              <span>Quick start</span>
+              <div className="presets" aria-label="Quick starts">
+                {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
+                  <button type="button" onClick={() => begin(key)} key={key}>
+                    <span>{PRESETS[key].label}</span>
+                    <small>{key === "warmup" ? "Gentle mixed start" : key === "year4" ? "Core Year 4" : key === "stretch" ? "Deep thinking" : "Facts and inverses"}</small>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -2116,14 +2119,14 @@ export default function FluencyApp() {
       {screen === "practice" && question && (
         <section className="practice-screen" id="main-content">
           <header className="practice-header">
-            <button type="button" className="wordmark wordmark--button" onClick={endSession} aria-label="End practice and see summary"><i aria-hidden="true" />Fluency</button>
+            <button type="button" className="header-text-button header-text-button--finish" onClick={endSession}>Finish</button>
             <div className="session-pulse" aria-label={`${sessionProgressText(stats.attempted, activeSession)} explored${preferences.timedPressure ? ` in ${formatDuration(elapsed)}` : ""}`}>
               <span>{sessionProgressText(stats.attempted, activeSession)}</span>
               {preferences.timedPressure && <><i /><span>{formatDuration(elapsed)}</span></>}
             </div>
             <div className="practice-tools">
               <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed={boardMode}>{boardMode ? "Exit board" : "Board"}</button>
-              <button type="button" className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings">•••</button>
+              <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
           </header>
 
