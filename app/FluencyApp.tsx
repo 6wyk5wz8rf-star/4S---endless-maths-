@@ -426,6 +426,9 @@ const VULGAR_FRACTIONS: Record<string, string> = {
 };
 
 function spokenFraction(numerator: string, denominator: string) {
+  if (numerator === "□" || denominator === "□") {
+    return `${numerator === "□" ? "blank" : numerator} over ${denominator === "□" ? "blank" : denominator}`;
+  }
   const common = VULGAR_FRACTIONS[`${numerator}/${denominator}`];
   if (common) return common;
   if (numerator === "1") {
@@ -436,15 +439,20 @@ function spokenFraction(numerator: string, denominator: string) {
   return names[denominator] ? `${numerator} ${names[denominator]}` : `${numerator} over ${denominator}`;
 }
 
+function normaliseFractionTokens(value: string) {
+  return String(value ?? "").replace(/(?<!\[)(-?\d+|□)\/(-?\d+|□)(?!\])/g, "[[$1/$2]]");
+}
+
 function accessibleMath(value: string) {
-  let spoken = String(value ?? "");
+  let spoken = normaliseFractionTokens(value);
   for (const [symbol, words] of Object.entries(VULGAR_FRACTIONS)) spoken = spoken.replaceAll(symbol, words);
-  spoken = spoken.replace(/\[\[(-?\d+)\/(-?\d+)\]\]/g, (_, numerator, denominator) => spokenFraction(numerator, denominator));
+  spoken = spoken.replace(/\[\[((?:-?\d+)|□)\/((?:-?\d+)|□)\]\]/g, (_, numerator, denominator) => spokenFraction(numerator, denominator));
   return spoken
     .replaceAll("□", " blank ")
     .replaceAll("×", " multiplied by ")
     .replaceAll("÷", " divided by ")
     .replaceAll("−", " minus ")
+    .replaceAll("≈", " approximately ")
     .replaceAll("=", " equals ")
     .replaceAll("<", " is less than ")
     .replaceAll(">", " is greater than ")
@@ -461,11 +469,11 @@ function questionMathScale(value: string) {
 }
 
 function MathText({ value }: { value: string }) {
-  const segments = String(value).split(/(\[\[-?\d+\/-?\d+\]\])/g);
+  const segments = normaliseFractionTokens(value).split(/(\[\[(?:-?\d+|□)\/(?:-?\d+|□)\]\])/g);
   return (
     <>
       {segments.map((segment, index) => {
-        const match = segment.match(/^\[\[(-?\d+)\/(-?\d+)\]\]$/);
+        const match = segment.match(/^\[\[((?:-?\d+)|□)\/((?:-?\d+)|□)\]\]$/);
         if (!match) return <span key={`${segment}-${index}`}>{segment}</span>;
         return (
           <span className="fraction" aria-label={spokenFraction(match[1], match[2])} key={`${segment}-${index}`}>
@@ -805,33 +813,36 @@ function scaffoldActionLabel(item: QuestionItem | null, stage: number) {
 
 function shouldShowQuestionDisplay(item: QuestionItem) {
   if (item.type !== "choice") return true;
-  if (/^choose\b/i.test(item.display.trim())) return false;
-  if (item.promptVisual && /^(read\b|correct or find\b)/i.test(item.display.trim())) return false;
+  const display = item.display.trim();
+  if (/^choose\b/i.test(display)) return false;
+  if (/^(three share one value or rule|compare without long addition|choose without long multiplication|complete the whole)$/i.test(display)) return false;
+  if (item.promptVisual && /^(read\b|correct or find\b)/i.test(display)) return false;
   return true;
 }
 
-function ScaffoldPanel({ item, stage }: { item: QuestionItem; stage: number }) {
+function ScaffoldPanel({ item, stage, onHide }: { item: QuestionItem; stage: number; onHide?: () => void }) {
   const visibleStage = visibleScaffoldStage(item, stage);
   if (visibleStage <= 0 || !item) return null;
   const scaffold = item.scaffold;
+  const heading = ({ 1: "Hint", 2: "See it", 3: "Steps", 4: "Model" } as const)[visibleStage as 1 | 2 | 3 | 4];
   return (
     <aside className={`scaffold scaffold--stage-${visibleStage}`} aria-live="polite">
       {visibleStage === 1 && (
         <div className="scaffold__hint">
-          <span>Hint</span>
+          <header className="scaffold__heading"><span>{heading}</span>{onHide && <button type="button" onClick={onHide}>Hide help</button>}</header>
           <p><MathText value={scaffold.hint} /></p>
         </div>
       )}
       {visibleStage === 2 && (
         <div className="scaffold__visual">
-          <span>See it</span>
+          <header className="scaffold__heading"><span>{heading}</span>{onHide && <button type="button" onClick={onHide}>Hide help</button>}</header>
           <p className="scaffold__caption">{scaffold.visual.title}</p>
           <VisualScaffold visual={scaffold.visual} />
         </div>
       )}
       {visibleStage === 3 && (
         <div className="scaffold__steps">
-          <span>Steps</span>
+          <header className="scaffold__heading"><span>{heading}</span>{onHide && <button type="button" onClick={onHide}>Hide help</button>}</header>
           <ol>
             {scaffold.steps.map((step: string, index: number) => <li key={index}><MathText value={step} /></li>)}
           </ol>
@@ -839,7 +850,7 @@ function ScaffoldPanel({ item, stage }: { item: QuestionItem; stage: number }) {
       )}
       {visibleStage === 4 && (
         <div className="scaffold__model">
-          <span>Model</span>
+          <header className="scaffold__heading"><span>{heading}</span>{onHide && <button type="button" onClick={onHide}>Hide help</button>}</header>
           <strong><MathText value={scaffold.model.display} /></strong>
           {scaffold.model.lines.map((line: string, index: number) => <p key={index}><MathText value={line} /></p>)}
           <b>= <MathText value={scaffold.model.answer} /></b>
@@ -2677,7 +2688,7 @@ export default function FluencyApp() {
 
           <footer className="setup-footer">
             <span>Quiet practice. No scores or timer pressure.</span>
-            <button type="button" className="teacher-entry" onClick={openTeacherTools}>Teacher</button>
+            <button type="button" className="teacher-entry" onClick={openTeacherTools}>Teacher tools</button>
           </footer>
         </section>
       )}
@@ -2691,18 +2702,19 @@ export default function FluencyApp() {
               {sessionSecondaryText && <><i /><span>{sessionSecondaryText}</span></>}
             </div>
             <div className="practice-tools">
-              <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed={boardMode} aria-label={boardMode ? "Exit teacher-led class view" : "Enter teacher-led class view"} title="Teacher-led class view">{boardMode ? "Exit teaching" : "Teach"}</button>
+              {boardMode && <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed="true">Exit teacher view</button>}
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
           </header>
 
           <div className={`control-drawer ${controlOpen ? "is-open" : ""} ${controlsLocked ? "is-locked" : ""}`}>
-            <button type="button" className="control-drawer__tab" onClick={() => { if (!controlsLocked) setControlOpen((open) => !open); }} aria-expanded={controlOpen} disabled={controlsLocked}>
-              <span>{controlsLocked ? "Set by teacher" : "Adjust"}</span>{!controlsLocked && <i>{controlOpen ? "−" : "+"}</i>}
+            <button type="button" className="control-drawer__tab" onClick={() => setControlOpen((open) => !open)} aria-expanded={controlOpen}>
+              <span>Practice settings</span><i aria-hidden="true">{controlOpen ? "−" : "+"}</i>
             </button>
             {controlOpen && (
               <div className="control-drawer__body">
+                {controlsLocked && <p className="control-drawer__notice">Challenge and support are set by the teacher for this session.</p>}
                 {challengePermission !== "locked" && <AxisControl compact id="practice-challenge" label="Challenge" value={challenge} setValue={changeChallenge} anchors={CHALLENGE_ANCHORS} min={practiceChallengeMin} max={practiceChallengeMax} />}
                 {supportPermission !== "locked" && <AxisControl compact id="practice-support" label="Support" value={support} setValue={changeSupport} anchors={SUPPORT_ANCHORS} min={practiceSupportMin} max={practiceSupportMax} />}
                 {(modePermission !== "locked" || focusPermission !== "locked") && (
@@ -2711,6 +2723,7 @@ export default function FluencyApp() {
                     {focusPermission !== "locked" && <label><span>Focus</span><select value={focus ?? "mixed"} onChange={(event) => changePracticeFocus(event.target.value)}><option value="mixed">Mixed</option>{[...FOCUS_OPTIONS, "Equivalence and Missing Numbers"].map((item) => <option value={item.toLowerCase()} key={item}>{item}</option>)}</select></label>}
                   </div>
                 )}
+                {!boardMode && <div className="practice-teacher-option"><div><strong>Teacher-led view</strong><span>Show one question to the whole class.</span></div><button type="button" onClick={toggleBoardMode}>Open teacher view</button></div>}
               </div>
             )}
           </div>
@@ -2741,7 +2754,7 @@ export default function FluencyApp() {
 
               {question.promptVisual && <div className="prompt-visual"><VisualScaffold visual={question.promptVisual} /></div>}
 
-              <ScaffoldPanel item={question} stage={scaffoldStage} />
+              <ScaffoldPanel item={question} stage={scaffoldStage} onHide={!boardMode ? () => setScaffoldStage(0) : undefined} />
 
               {anotherWayOpen && question.scaffold.alternatives.length > 0 && (
                 <div className="another-way" aria-live="polite">
