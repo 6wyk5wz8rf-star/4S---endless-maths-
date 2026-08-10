@@ -414,6 +414,475 @@ test("an independent arithmetic oracle checks generated direct and missing equat
   assert.ok(missingChecks > 500);
 });
 
+test("worked models solve the active arithmetic question rather than a nearby different one", () => {
+  const number = "(-?\\d+(?:\\.\\d+)?)";
+  const directPattern = new RegExp(`^${number}\\s*([+−×÷])\\s*${number}$`);
+  const missingPatterns = [
+    ["missing-addend-right", new RegExp(`^${number}\\s*\\+\\s*□\\s*=\\s*${number}$`)],
+    ["missing-addend-left", new RegExp(`^□\\s*\\+\\s*${number}\\s*=\\s*${number}$`)],
+    ["missing-subtrahend", new RegExp(`^${number}\\s*−\\s*□\\s*=\\s*${number}$`)],
+    ["missing-minuend", new RegExp(`^□\\s*−\\s*${number}\\s*=\\s*${number}$`)],
+    ["missing-factor", new RegExp(`^${number}\\s*×\\s*□\\s*=\\s*${number}$`)],
+    ["missing-dividend", new RegExp(`^□\\s*÷\\s*${number}\\s*=\\s*${number}$`)],
+    ["missing-divisor", new RegExp(`^${number}\\s*÷\\s*□\\s*=\\s*${number}$`)],
+  ];
+  const counts = new Map();
+  const evaluateEquation = (line) => {
+    const compact = String(line).replace(/^So\s+/i, "").replace(/[.,]$/, "").replaceAll(",", "").trim();
+    const match = compact.match(new RegExp(`^${number}\\s*([+−×÷])\\s*${number}\\s*=\\s*${number}$`));
+    if (!match) return null;
+    const left = Number(match[1]);
+    const operation = match[2];
+    const right = Number(match[3]);
+    const shown = Number(match[4]);
+    const expected = operation === "+" ? left + right : operation === "−" ? left - right : operation === "×" ? left * right : left / right;
+    return Math.abs(shown - expected) < 0.000001;
+  };
+
+  for (const challenge of AUDIT_POINTS) {
+    const engine = new FluencyEngine({ seed: `active-model-${challenge}`, challenge, connectedSequences: false });
+    for (let index = 0; index < 900; index += 1) {
+      const item = engine.next();
+      if (!Number.isFinite(Number(item.answer))) continue;
+      const display = item.display.replaceAll(",", "").trim();
+      const direct = display.match(directPattern);
+      let category = null;
+      if (direct) {
+        const left = Number(direct[1]);
+        const operation = direct[2];
+        const right = Number(direct[3]);
+        const expected = operation === "+" ? left + right : operation === "−" ? left - right : operation === "×" ? left * right : left / right;
+        if (Math.abs(expected - Number(item.answer)) < 0.000001) category = `direct-${operation}`;
+      }
+      if (!category) category = missingPatterns.find(([, pattern]) => pattern.test(display))?.[0] ?? null;
+      if (!category) continue;
+
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+      assert.equal(item.scaffold.model.display, item.display, `${item.family}: model switched ${item.display} to ${item.scaffold.model.display}`);
+      assert.equal(String(item.scaffold.model.answer), String(item.answer), `${item.family}: model answer drifted from the active question`);
+      const checkedLines = item.scaffold.model.lines.map(evaluateEquation).filter((result) => result !== null);
+      assert.ok(checkedLines.length >= 1, `${item.family}: model had no checkable arithmetic for ${item.display}`);
+      assert.ok(checkedLines.every(Boolean), `${item.family}: model contained a false equality for ${item.display}: ${item.scaffold.model.lines.join(" | ")}`);
+    }
+  }
+
+  for (const category of ["direct-+", "direct-−", "direct-×", "direct-÷", ...missingPatterns.map(([name]) => name)]) {
+    assert.ok((counts.get(category) ?? 0) >= 10, `${category} was not exercised enough`);
+  }
+});
+
+test("estimation models never present an approximate answer as an exact equality", () => {
+  const engine = new FluencyEngine({
+    seed: "estimation-model-semantics",
+    challenge: 58,
+    permittedFamilies: ["estimation-fluency"],
+    connectedSequences: false,
+  });
+  let approximateModels = 0;
+  for (let index = 0; index < 300; index += 1) {
+    const item = engine.next();
+    const direct = String(item.display).replaceAll(",", "").match(/^(-?\d+(?:\.\d+)?)\s*([+−×÷])\s*(-?\d+(?:\.\d+)?)$/);
+    if (!direct || !Number.isFinite(Number(String(item.answer).replaceAll(",", "")))) continue;
+    const left = Number(direct[1]);
+    const right = Number(direct[3]);
+    const exact = direct[2] === "+" ? left + right : direct[2] === "−" ? left - right : direct[2] === "×" ? left * right : left / right;
+    if (exact === Number(String(item.answer).replaceAll(",", ""))) continue;
+    approximateModels += 1;
+    assert.match(item.scaffold.model.display, /^Estimate\s/);
+    assert.equal(item.scaffold.model.answer, String(item.answer));
+  }
+  assert.ok(approximateModels > 50);
+});
+
+test("the 10 divided by 5 regression and all direct or missing division models keep one equation in view", () => {
+  const foundation = new FluencyEngine({
+    seed: "show-division-10",
+    challenge: 10,
+    mode: "focus",
+    focus: "division",
+    permittedFamilies: ["simple-sharing", "division-foundation-models"],
+    connectedSequences: false,
+  });
+  let tenDividedByFive = null;
+  for (let index = 0; index < 300 && !tenDividedByFive; index += 1) {
+    const item = foundation.next();
+    if (item.display === "10 ÷ 5") tenDividedByFive = item;
+  }
+  assert.ok(tenDividedByFive, "the regression question was not generated");
+  assert.deepEqual(
+    { display: tenDividedByFive.scaffold.model.display, answer: tenDividedByFive.scaffold.model.answer },
+    { display: "10 ÷ 5", answer: "2" },
+  );
+  assert.ok(tenDividedByFive.scaffold.model.lines.includes("5 × 2 = 10"));
+  assert.ok(tenDividedByFive.scaffold.model.lines.includes("So 10 ÷ 5 = 2"));
+
+  for (const challenge of AUDIT_POINTS) {
+    const engine = new FluencyEngine({ seed: `division-model-${challenge}`, challenge, mode: "focus", focus: "division", connectedSequences: false });
+    for (let index = 0; index < 500; index += 1) {
+      const item = engine.next();
+      const display = item.display.replaceAll(",", "").trim();
+      if (!/^(?:□|\d+)\s*÷\s*(?:□|\d+)(?:\s*=\s*\d+)?$/.test(display) || !Number.isFinite(Number(item.answer))) continue;
+      assert.equal(item.scaffold.model.display, item.display);
+      assert.equal(String(item.scaffold.model.answer), String(item.answer));
+      assert.equal(item.scaffold.model.lines.some((line) => String(line).startsWith("So ") && String(line).replaceAll(",", "").includes(String(item.answer).replaceAll(",", ""))), true, `${item.display}: missing concluding line`);
+    }
+  }
+});
+
+test("related and near-transfer arithmetic items refresh their value-specific scaffolds", () => {
+  const division = new FluencyEngine({
+    seed: "fresh-division-transfer",
+    challenge: 18,
+    mode: "focus",
+    focus: "division",
+    permittedFamilies: ["division-foundation-models"],
+    connectedSequences: false,
+  });
+  let source = division.next();
+  while (!/^\d+ ÷ \d+$/.test(source.display)) source = division.next();
+  division.recordResponse({ item: source, correct: true, firstTry: false, supportUsed: 4, modelUsed: true });
+  const transfer = division.next();
+  assert.equal(transfer.metadata.connectionKind, "near-transfer");
+  assert.equal(transfer.scaffold.model.display, transfer.display);
+  assert.equal(String(transfer.scaffold.model.answer), String(transfer.answer));
+  if (transfer.scaffold.visual.kind === "groups") {
+    assert.equal(Number(transfer.scaffold.visual.total), Number(transfer.values.a));
+    assert.equal(Number(transfer.scaffold.visual.groupSize), Number(transfer.values.b));
+  }
+  if (transfer.scaffold.visual.kind === "counters") {
+    assert.equal(Number(transfer.scaffold.visual.groups) * Number(transfer.scaffold.visual.perGroup), Number(transfer.values.a));
+  }
+
+  const retrieval = new FluencyEngine({ seed: "fresh-related-retrieval", challenge: 40, mode: "mix", permittedFamilies: ["division-fact"], connectedSequences: false });
+  const missed = retrieval.next();
+  retrieval.recordResponse({ item: missed, correct: false, firstTry: false, supportUsed: 0, modelUsed: false });
+  const following = Array.from({ length: 10 }, () => retrieval.next());
+  const related = following.find((item) => item.metadata.connectionKind === "related-retrieval");
+  assert.ok(related, "a related inverse fact was not scheduled");
+  assert.equal(related.scaffold.visual.kind, "relationship");
+  assert.ok(related.scaffold.visual.left.includes(missed.display));
+  assert.ok(related.scaffold.visual.right.includes(related.display));
+  assert.equal(related.scaffold.model.display, related.display);
+});
+
+test("multi-step subtraction blanks are solved independently rather than copied from the right-hand side", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "multi-step-missing-number");
+  assert.ok(family);
+  let checked = 0;
+  for (let seed = 1; seed <= 2_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = family.generate({ rng, target: 90, challenge: 90 });
+    if (item.metadata.structure !== "missing-two-step-subtract") continue;
+    const match = item.display.match(/^(\d+) − □ − (\d+) = (\d+)$/);
+    assert.ok(match, item.display);
+    const [, start, finalSubtract, result] = match.map(Number);
+    const expected = start - finalSubtract - result;
+    assert.equal(Number(item.answer), expected, `${item.display} should have blank ${expected}, not ${item.answer}`);
+    assert.equal(start - Number(item.answer) - finalSubtract, result);
+    checked += 1;
+  }
+  assert.ok(checked > 250);
+});
+
+test("fraction labels, values and visuals agree for unit, non-unit, group and missing-whole structures", () => {
+  const visualFamily = QUESTION_FAMILIES.find((candidate) => candidate.id === "fraction-visual-identification");
+  const quantityFamily = QUESTION_FAMILIES.find((candidate) => candidate.id === "fraction-quantity-network");
+  assert.ok(visualFamily && quantityFamily);
+  const counts = { unit: 0, nonUnit: 0, groups: 0, missingWhole: 0 };
+
+  for (let seed = 1; seed <= 4_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = visualFamily.generate({ rng, target: 70, challenge: 70 });
+    if (item.metadata.structure === "fraction-unit-name") {
+      assert.equal(item.values.numerator, 1);
+      assert.match(item.answer, /^1\//);
+      assert.equal(item.promptVisual.numerator, 1);
+      counts.unit += 1;
+    }
+    if (item.metadata.structure === "fraction-non-unit-name") {
+      assert.ok(item.values.numerator > 1);
+      counts.nonUnit += 1;
+    }
+    if (item.metadata.structure === "fraction-groups-count") {
+      assert.equal(item.promptVisual.kind, "bar-model");
+      assert.equal(item.promptVisual.segments, item.values.denominator);
+      assert.equal(item.promptVisual.filled, item.values.numerator);
+      assert.match(item.instruction, new RegExp(`^${item.values.numerator} of ${item.values.denominator} equal groups`));
+      counts.groups += 1;
+    }
+
+    let quantityState = seed + 10_000;
+    const quantityRng = () => {
+      quantityState = (quantityState * 1664525 + 1013904223) >>> 0;
+      return quantityState / 4294967296;
+    };
+    const quantity = quantityFamily.generate({ rng: quantityRng, target: 80, challenge: 80 });
+    if (quantity.metadata.structure !== "fraction-missing-whole") continue;
+    const shownUnit = Number(quantity.display.match(/=\s*(\d+)$/)?.[1]);
+    assert.equal(quantity.values.numerator, 1);
+    assert.equal(quantity.scaffold.visual.kind, "bar-model");
+    assert.equal(quantity.scaffold.visual.filled, 1);
+    assert.equal(Number(quantity.answer), shownUnit * quantity.values.denominator);
+    assert.equal(quantity.scaffold.model.display, quantity.display);
+    assert.equal(String(quantity.scaffold.model.answer), String(quantity.answer));
+    counts.missingWhole += 1;
+  }
+
+  assert.ok(Object.values(counts).every((count) => count > 500), JSON.stringify(counts));
+});
+
+test("decimal digit-value prompts identify one unambiguous place", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "decimal-place-relations");
+  assert.ok(family);
+  let checked = 0;
+  for (let seed = 1; seed <= 3_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = family.generate({ rng, target: 80, challenge: 80 });
+    if (item.metadata.structure !== "decimal-digit-value") continue;
+    const decimals = item.display.split(".")[1]?.padEnd(2, "0") ?? "00";
+    assert.notEqual(decimals[0], decimals[1], `${item.display} repeats the target digit in both places`);
+    assert.match(item.instruction, /hundredths digit/);
+    assert.equal(Number(item.answer), Number(decimals[1]) / 100);
+    checked += 1;
+  }
+  assert.ok(checked > 400);
+});
+
+test("division strategy facts stay integral and partitions genuinely split the dividend", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "division-strategy-lab");
+  assert.ok(family);
+  const counts = { fact: 0, partition: 0, scale: 0 };
+
+  for (let seed = 1; seed <= 5_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = family.generate({ rng, target: 90, challenge: 90 });
+    const divisor = Number(item.values.b);
+    const [dividend, shownDivisor] = item.display.split(" ÷ ").map(Number);
+    assert.equal(shownDivisor, divisor);
+
+    if (item.metadata.structure === "divide-best-known-fact") {
+      const match = String(item.answer).match(/^(\d+) ÷ (\d+) = (\d+)$/);
+      assert.ok(match, `friendly fact was not an integer equality: ${item.answer}`);
+      const [, knownDividend, knownDivisor, knownQuotient] = match.map(Number);
+      assert.equal(knownDivisor, divisor);
+      assert.equal(knownDividend / knownDivisor, knownQuotient);
+      assert.ok(knownDividend < dividend, `${item.answer} does not simplify ${item.display}`);
+      assert.ok(item.choices.every((choice) => !/\d+\.\d+/.test(String(choice))), `decimal division choice leaked into ${item.display}`);
+      counts.fact += 1;
+    }
+
+    if (item.metadata.structure === "divide-partition") {
+      const partition = item.scaffold.visual;
+      assert.equal(partition.kind, "part-whole");
+      assert.equal(partition.whole, dividend);
+      assert.ok(partition.parts.length >= 2);
+      assert.ok(partition.parts.every((part) => part > 0 && part < dividend && part % divisor === 0));
+      assert.equal(partition.parts.reduce((sum, part) => sum + part, 0), dividend);
+      counts.partition += 1;
+    }
+
+    if (item.metadata.structure === "divide-scale") {
+      const match = item.scaffold.hint.match(/Use (\d+) ÷ (\d+) = (\d+), then scale by (\d+)\./);
+      assert.ok(match, item.scaffold.hint);
+      const [, knownDividend, knownDivisor, knownQuotient, scale] = match.map(Number);
+      assert.equal(knownDivisor, divisor);
+      assert.equal(knownDividend / knownDivisor, knownQuotient);
+      assert.equal(knownDividend * scale, dividend);
+      counts.scale += 1;
+    }
+
+    assert.equal(validateQuestion(item).valid, true, `${item.display}: ${validateQuestion(item).issues.join(", ")}`);
+  }
+
+  assert.ok(Object.values(counts).every((count) => count > 800), JSON.stringify(counts));
+});
+
+test("whole-number digit-value prompts name the exact place", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "place-value-actions");
+  assert.ok(family);
+  const placeNames = new Map([[1000, "thousands"], [100, "hundreds"], [10, "tens"], [1, "ones"]]);
+  let checked = 0;
+
+  for (let seed = 1; seed <= 4_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = family.generate({ rng, target: 80, challenge: 80 });
+    if (item.metadata.structure !== "digit-value") continue;
+    const place = Number(item.values.place);
+    const placeName = placeNames.get(place);
+    const value = Number(item.display.replaceAll(",", ""));
+    const digit = Math.floor(value / place) % 10;
+    assert.match(item.instruction, new RegExp(`${placeName} digit ${digit}`));
+    assert.equal(Number(item.answer), digit * place);
+    assert.equal(validateQuestion(item).valid, true, validateQuestion(item).issues.join(", "));
+    checked += 1;
+  }
+
+  assert.ok(checked > 400);
+});
+
+test("proposed-answer judgements never label a false equality Yes", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "reasonable-or-not");
+  assert.ok(family);
+  const structures = new Set();
+  let yes = 0;
+  let no = 0;
+
+  for (let seed = 1; seed <= 5_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = family.generate({ rng, target: 90, challenge: 90 });
+    const display = item.display.replaceAll(",", "");
+    const arithmetic = display.match(/^(\d+)\s*([+−×÷])\s*(\d+)\s*=\s*(\d+)$/);
+    const placeValue = display.match(/^100 more than (\d+) is (\d+)$/);
+    let isTrue;
+    if (arithmetic) {
+      const left = Number(arithmetic[1]);
+      const right = Number(arithmetic[3]);
+      const proposed = Number(arithmetic[4]);
+      const exact = arithmetic[2] === "+" ? left + right : arithmetic[2] === "−" ? left - right : arithmetic[2] === "×" ? left * right : left / right;
+      isTrue = exact === proposed;
+    } else {
+      assert.ok(placeValue, item.display);
+      isTrue = Number(placeValue[1]) + 100 === Number(placeValue[2]);
+    }
+    assert.equal(item.answer, isTrue ? "Yes" : "No", `${item.display} was labelled ${item.answer}`);
+    assert.match(item.instruction, /correct/i);
+    assert.equal(validateQuestion(item).valid, true, validateQuestion(item).issues.join(", "));
+    structures.add(item.metadata.structure);
+    if (item.answer === "Yes") yes += 1;
+    else no += 1;
+  }
+
+  assert.deepEqual(structures, new Set(family.structures));
+  assert.ok(yes > 1_500 && no > 1_500, `Yes ${yes}, No ${no}`);
+});
+
+test("equality balancing always gives a positive keypad-enterable blank", () => {
+  const family = QUESTION_FAMILIES.find((candidate) => candidate.id === "equality-balance");
+  assert.ok(family);
+
+  for (const challenge of [42, 45, 55, 70, 80, 90]) {
+    for (let seed = 1; seed <= 2_000; seed += 1) {
+      let state = seed + challenge * 10_000;
+      const rng = () => {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 4294967296;
+      };
+      const item = family.generate({ rng, target: challenge, challenge });
+      const equation = item.display.replaceAll(",", "").match(/^(\d+) \+ (\d+) = (\d+) \+ □$/);
+      assert.ok(equation, item.display);
+      const expected = Number(equation[1]) + Number(equation[2]) - Number(equation[3]);
+      assert.ok(expected > 0, `${item.display} requires ${expected}`);
+      assert.equal(Number(item.answer), expected);
+      assert.equal(validateQuestion(item).valid, true, validateQuestion(item).issues.join(", "));
+    }
+  }
+
+  const regression = new FluencyEngine({ seed: "neg-audit-45-1", challenge: 45, connectedSequences: false });
+  for (let index = 0; index <= 204; index += 1) {
+    const item = regression.next();
+    if (item.family === "equality-balance") assert.ok(Number(item.answer) > 0, `${index}: ${item.display} → ${item.answer}`);
+  }
+});
+
+test("missing factor, dividend and divisor scaffolds preserve the blank instead of drawing its answer", () => {
+  const familyIds = ["missing-factor", "missing-dividend", "missing-divisor", "multiplication-foundation-models", "division-foundation-models"];
+  const missingStructures = new Set(["missing-factor", "missing-dividend", "missing-divisor", "missing-groups", "missing-group-size", "missing-number-groups", "missing-group-size-division"]);
+  const seen = new Set();
+
+  for (const familyId of familyIds) {
+    const family = QUESTION_FAMILIES.find((candidate) => candidate.id === familyId);
+    assert.ok(family, familyId);
+    for (let seed = 1; seed <= 1_000; seed += 1) {
+      let state = seed;
+      const rng = () => {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 4294967296;
+      };
+      const item = family.generate({ rng, target: 80, challenge: 80 });
+      if (!missingStructures.has(item.metadata.structure)) continue;
+      const visual = item.scaffold.visual;
+      assert.equal(visual.kind, "relationship", `${familyId}/${item.metadata.structure} exposed the blank through ${visual.kind}`);
+      assert.ok(String(visual.left).includes("□") || /missing/.test(String(visual.right)), `${familyId}/${item.metadata.structure} removed the unknown from the model`);
+      seen.add(`${familyId}:${item.metadata.structure}`);
+    }
+  }
+
+  for (const expected of [
+    "missing-factor:missing-factor",
+    "missing-dividend:missing-dividend",
+    "missing-divisor:missing-divisor",
+    "multiplication-foundation-models:missing-groups",
+    "multiplication-foundation-models:missing-group-size",
+    "division-foundation-models:missing-number-groups",
+    "division-foundation-models:missing-group-size-division",
+  ]) assert.ok(seen.has(expected), `${expected} was not exercised`);
+});
+
+test("remainder and large equal-group representations never draw a false capped total", () => {
+  const remainderFamily = QUESTION_FAMILIES.find((candidate) => candidate.id === "division-remainder");
+  assert.ok(remainderFamily);
+  for (let seed = 1; seed <= 1_000; seed += 1) {
+    let state = seed;
+    const rng = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    const item = remainderFamily.generate({ rng, target: 84, challenge: 84 });
+    const match = String(item.answer).match(/^(\d+) remainder (\d+)$/);
+    assert.ok(match);
+    const quotient = Number(match[1]);
+    const remainder = Number(match[2]);
+    const divisor = Number(item.values.b);
+    assert.equal(item.scaffold.visual.kind, "part-whole");
+    assert.equal(item.scaffold.visual.whole, item.values.a);
+    assert.deepEqual(item.scaffold.visual.parts, [divisor * quotient, remainder]);
+    assert.equal(item.scaffold.visual.parts.reduce((sum, part) => sum + part, 0), item.scaffold.visual.whole);
+  }
+
+  for (const challenge of AUDIT_POINTS) {
+    const engine = new FluencyEngine({ seed: `bounded-visual-${challenge}`, challenge });
+    for (let index = 0; index < 800; index += 1) {
+      const item = engine.next();
+      for (const visual of [item.promptVisual, item.scaffold.visual]) {
+        if (visual?.kind === "array") {
+          assert.ok(Number(visual.rows) <= 12 && Number(visual.columns) <= 12 && Number(visual.rows) * Number(visual.columns) <= 96, `${item.family}: truncated array`);
+        }
+        if (visual?.kind === "groups") {
+          assert.equal(Number(visual.total) % Number(visual.groupSize), 0, `${item.family}: remainder hidden in equal groups`);
+          assert.ok(Number(visual.total) / Number(visual.groupSize) <= 12, `${item.family}: capped groups hide the true quotient`);
+        }
+        if (visual?.kind === "counters") {
+          assert.ok(Number(visual.groups) <= 12 && Number(visual.perGroup) <= 12, `${item.family}: capped counters hide the true total`);
+        }
+      }
+    }
+  }
+});
+
 test("every missing-digit puzzle has exactly one fitting digit", () => {
   const families = QUESTION_FAMILIES.filter((family) => family.id === "missing-digit" || family.id === "missing-digit-depth");
   let checked = 0;

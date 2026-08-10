@@ -7,7 +7,8 @@
   --teacher-paper: #f6f2e8;
   --teacher-raised: #fffdf7;
   --teacher-line: #d4d2ca;
-  --teacher-accent: #b86f42;
+  --teacher-line-strong: #78818f;
+  --teacher-accent: #8a4c2f;
   min-height: 100svh;
   background: var(--teacher-paper);
   color: var(--teacher-ink);
@@ -33,6 +34,8 @@
 .teacher-tools *, .teacher-tools *::before, .teacher-tools *::after { box-sizing: border-box; }
 .teacher-tools button, .teacher-tools input, .teacher-tools select, .teacher-tools textarea { color: inherit; font: inherit; }
 .teacher-tools button, .teacher-tools select, .teacher-tools input[type="checkbox"], .teacher-tools input[type="radio"] { cursor: pointer; }
+.teacher-tools button:disabled, .teacher-tools select:disabled, .teacher-tools input:disabled { cursor: not-allowed; filter: saturate(.45); opacity: 1; }
+.teacher-tools button:disabled { background: var(--teacher-wash) !important; border-color: var(--teacher-line-strong) !important; box-shadow: none; color: var(--teacher-ink-soft) !important; }
 .teacher-tools button:focus-visible, .teacher-tools input:focus-visible, .teacher-tools select:focus-visible, .teacher-tools textarea:focus-visible, .teacher-tools summary:focus-visible { outline: 3px solid var(--teacher-accent); outline-offset: 3px; }
 .teacher-tools h1, .teacher-tools h2, .teacher-tools h3, .teacher-tools p { margin-top: 0; }
 .teacher-tools .sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
@@ -242,51 +245,97 @@
 .teacher-print-layout { display: grid; grid-template-columns: 310px 1fr; height: calc(100% - 76px); min-height: 560px; }
 .teacher-print-controls { border-right: 1px solid var(--teacher-line); display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 24px; }
 .teacher-print-controls > label { display: grid; gap: 6px; }
-.teacher-print-preview { align-items: start; background: #deddd8; display: flex; justify-content: center; overflow: auto; padding: 34px; }
-.print-sheet { aspect-ratio: 210 / 297; background: white; box-shadow: 0 5px 30px rgba(0,0,0,.12); color: #111; min-height: 760px; padding: 7%; width: min(100%, 600px); }
+.teacher-print-preview { align-items: center; background: #deddd8; display: flex; flex-direction: column; gap: 34px; justify-content: flex-start; overflow: auto; padding: 34px; }
+.print-sheet { aspect-ratio: 210 / 297; background: white; box-shadow: 0 5px 30px rgba(0,0,0,.12); color: #111; min-height: 760px; overflow-wrap: anywhere; padding: 7%; width: min(100%, 600px); }
 .teacher-print-preview.landscape .print-sheet { aspect-ratio: 297 / 210; width: min(100%, 780px); }
-.teacher-print-preview.format-strip .print-sheet { aspect-ratio: 210 / 99; min-height: 340px; width: min(100%, 760px); }
+.teacher-print-preview.format-strip .print-sheet--questions { aspect-ratio: 210 / 99; box-sizing: border-box; flex: 0 0 auto; min-height: 0; padding: 3.5%; width: min(100%, 780px); }
 .teacher-print-preview.is-colour .print-sheet h1,
 .teacher-print-preview.is-colour .print-sheet h2 { color: var(--teacher-indigo); }
+.teacher-print-preview.is-colour .print-sheet--questions > ol > li::before,
 .teacher-print-preview.is-colour .print-sheet li::marker,
 .teacher-print-preview.is-colour .print-sheet li small { color: var(--teacher-accent); }
 .teacher-print-preview.is-monochrome .print-sheet,
 .teacher-print-preview.is-monochrome .print-sheet * { color: #111 !important; }
-.print-sheet h1 { font-family: Georgia, serif; font-size: 2rem; margin-bottom: 10px; }
+.print-sheet h1 { font-family: Georgia, serif; font-size: 2rem; line-height: 1.12; margin-bottom: 10px; overflow-wrap: anywhere; }
 .print-sheet header p { border-bottom: 1px solid #444; font-size: .8rem; padding-bottom: 12px; }
-.print-sheet > ol { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0,1fr)); margin-top: 32px; }
-.print-sheet li { min-height: 50px; padding-left: 8px; }
-.print-sheet li strong { font-size: 1.15rem; }
-.print-sheet li small { display: block; margin-top: 8px; }
+.print-sheet--questions > ol { column-gap: 40px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); list-style: none; margin-top: 32px; row-gap: 24px; }
+.print-sheet--questions > ol > li { break-inside: avoid; min-height: 50px; min-width: 0; overflow-wrap: anywhere; padding-inline: 30px 8px; page-break-inside: avoid; position: relative; }
+.print-sheet--questions > ol > li::before { content: counter(list-item) "."; font-variant-numeric: tabular-nums; inset-inline-start: 0; position: absolute; top: 0; }
+.print-sheet--questions > ol > li > strong { display: block; font-size: 1.15rem; line-height: 1.28; overflow-wrap: anywhere; }
+.print-sheet--questions > ol > li > small { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+.print-choices { display: grid; gap: 4px 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: lower-alpha; margin: 8px 0 0; padding-left: 22px; }
+.print-choices li { break-inside: avoid; font-size: .86rem; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; padding-left: 2px; }
 .teacher-print-fraction { display: inline-grid; font-variant-numeric: tabular-nums; grid-template-rows: auto auto; line-height: 1; margin: 0 .12em; text-align: center; vertical-align: -.25em; }
 .teacher-print-fraction > span:first-child { border-bottom: .08em solid currentColor; padding: 0 .12em .08em; }
 .teacher-print-fraction > span:last-child { padding: .08em .12em 0; }
+.teacher-print-math-unit { display: inline-block; white-space: nowrap; }
 .print-visual { break-inside: avoid; color: #111; margin: 10px 0 6px; max-width: 100%; }
 .print-number-line { padding: 10px 6px 0; }
 .print-number-line__track { border-top: 2px solid currentColor; height: 22px; position: relative; }
 .print-number-line__track > i { border-left: 1px solid currentColor; height: 8px; position: absolute; top: -5px; }
 .print-number-line__track > b { background: #111; border: 2px solid white; border-radius: 50%; height: 10px; position: absolute; top: -6px; transform: translateX(-50%); width: 10px; }
-.print-number-line__track > b span { background: white; font-size: .68rem; font-weight: 700; left: 50%; padding: 0 2px; position: absolute; top: 10px; transform: translateX(-50%); }
+.print-number-line__track > b span { background: white; font-size: .68rem; font-weight: 700; left: 50%; line-height: 1.1; padding: 0 2px; position: absolute; top: 10px; transform: translateX(-50%); white-space: nowrap; }
 .print-number-line footer { display: flex; font-size: .68rem; justify-content: space-between; margin-top: -5px; }
 .print-fraction-bar { border: 1px solid currentColor; display: flex; height: 28px; max-width: 260px; }
 .print-fraction-bar i { border-right: 1px solid currentColor; flex: 1; }
 .print-fraction-bar i:last-child { border-right: 0; }
 .print-fraction-bar i.is-filled { background: repeating-linear-gradient(135deg, transparent 0 3px, #111 3px 4px); }
+.print-hundred-grid { border: 1px solid currentColor; display: grid; grid-template-columns: repeat(10, 7px); width: max-content; }
+.print-hundred-grid i { border-bottom: 1px solid currentColor; border-right: 1px solid currentColor; height: 7px; width: 7px; }
+.print-hundred-grid i:nth-child(10n) { border-right: 0; }
+.print-hundred-grid i:nth-last-child(-n + 10) { border-bottom: 0; }
+.print-hundred-grid i.is-filled { background: repeating-linear-gradient(135deg, transparent 0 2px, #111 2px 3px); }
 .print-array { display: grid; gap: 4px; grid-template-columns: repeat(var(--print-array-columns), 7px); width: max-content; }
 .print-array i, .print-groups i { background: #111; border-radius: 50%; display: block; height: 6px; width: 6px; }
 .print-groups { display: flex; flex-wrap: wrap; gap: 5px; }
-.print-groups > span { border: 1px solid currentColor; border-radius: 999px; display: flex; flex-wrap: wrap; gap: 3px; max-width: 90px; min-height: 24px; padding: 6px; }
+.print-groups > span { align-items: center; border: 1px solid currentColor; border-radius: 999px; display: flex; flex-wrap: wrap; gap: 3px; max-width: 90px; min-height: 24px; padding: 6px; }
+.print-groups > span > small { font-size: .62rem; font-weight: 800; margin: 0 3px 0 0; }
+.print-partition { align-items: center; border: 1px solid currentColor; display: inline-grid; gap: 8px; grid-template-columns: auto 1fr; max-width: 100%; padding: 6px 9px; }
+.print-partition b { border-right: 1px solid currentColor; padding-right: 8px; }
+.print-partition span { font-size: .78rem; overflow-wrap: anywhere; }
+.print-ten-frame { border: 1px solid currentColor; display: grid; grid-template-columns: repeat(5, 18px); width: max-content; }
+.print-ten-frame i { border-bottom: 1px solid currentColor; border-right: 1px solid currentColor; height: 18px; position: relative; width: 18px; }
+.print-ten-frame i:nth-child(5n) { border-right: 0; }
+.print-ten-frame i:nth-last-child(-n + 5) { border-bottom: 0; }
+.print-ten-frame i.is-filled::after { background: #111; border-radius: 50%; content: ""; inset: 4px; position: absolute; }
 .print-place-value { border: 1px solid currentColor; display: grid; grid-template-columns: repeat(4, minmax(34px, 1fr)); max-width: 230px; }
 .print-place-value > span { border-right: 1px solid currentColor; display: grid; text-align: center; }
 .print-place-value > span:last-child { border-right: 0; }
 .print-place-value small { border-bottom: 1px solid currentColor; font-size: .62rem; padding: 2px; }
 .print-place-value b { font-size: 1rem; padding: 4px; }
-.teacher-print-preview.format-strip .print-sheet > ol { gap: 14px 34px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 20px; }
-.teacher-print-preview.format-strip .print-sheet li { min-height: 38px; }
-.print-answers { border-top: 1px solid #999; margin-top: 36px; padding-top: 15px; }
-.print-answers h2 { font-size: 1rem; }
-.print-answers ol { columns: 4; }
-.teacher-preview-empty { align-items: center; color: var(--teacher-ink-soft); display: flex; flex-direction: column; margin: auto; max-width: 280px; text-align: center; }
+.print-place-value-grid { border: 1px solid currentColor; max-width: 250px; }
+.print-place-value-grid > header, .print-place-value-grid > div { display: grid; grid-template-columns: repeat(4, minmax(32px, 1fr)); padding-left: 22px; position: relative; text-align: center; }
+.print-place-value-grid > header { border-bottom: 1px solid currentColor; }
+.print-place-value-grid > header small, .print-place-value-grid > div span { border-right: 1px solid currentColor; padding: 3px; }
+.print-place-value-grid > header small:last-child, .print-place-value-grid > div span:last-child { border-right: 0; }
+.print-place-value-grid > div + div { border-top: 1px solid currentColor; }
+.print-place-value-grid > div b { left: 6px; position: absolute; }
+.print-part-whole { align-items: center; display: flex; gap: 8px; }
+.print-part-whole strong, .print-part-whole span { border: 1px solid currentColor; padding: 5px 9px; }
+.print-part-whole strong { border-radius: 999px; }
+.print-relationship { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.print-relationship > * { border-bottom: 1px solid currentColor; padding: 3px 6px; }
+.print-relationship small { border: 0; font-size: .72rem; }
+.print-worked { border-left: 2px solid currentColor; display: grid; gap: 3px; padding-left: 9px; }
+.print-worked span { font-size: .78rem; overflow-wrap: anywhere; }
+.teacher-print-preview.format-strip .print-sheet--questions h1 { font-size: 1.15rem; margin-bottom: 4px; }
+.teacher-print-preview.format-strip .print-sheet--questions header p { font-size: .58rem; margin-bottom: 8px; padding-bottom: 5px; }
+.teacher-print-preview.format-strip .print-sheet--questions > ol { column-gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 8px; row-gap: 8px; }
+.teacher-print-preview.format-strip .print-sheet--questions > ol > li { font-size: .64rem; line-height: 1.16; min-height: 0; padding-inline: 22px 2px; }
+.teacher-print-preview.format-strip .print-sheet--questions > ol > li > strong { font-size: .75rem; line-height: 1.14; }
+.teacher-print-preview.format-strip .print-sheet--questions > ol > li > small { font-size: .56rem; line-height: 1.15; margin-top: 4px; }
+.teacher-print-preview.format-strip .print-choices { font-size: .58rem; gap: 2px 5px; margin-top: 4px; padding-left: 14px; }
+.teacher-print-preview.format-strip .print-sheet--questions .print-visual { margin-block: 4px; max-height: 50px; }
+.teacher-print-preview.format-strip .print-number-line { padding: 4px 2px 0; }
+.teacher-print-preview.format-strip .print-number-line__track { height: 38px; }
+.teacher-print-preview.format-strip .print-number-line__track > b span { font-size: .5rem; padding-inline: 1px; top: 8px; }
+.teacher-print-preview.format-strip .print-number-line__track > b:nth-of-type(3n + 2) span { top: 18px; }
+.teacher-print-preview.format-strip .print-number-line__track > b:nth-of-type(3n) span { top: 28px; }
+.teacher-print-preview.format-strip .print-number-line footer { font-size: .5rem; margin-top: 0; }
+.print-sheet--answers h2 { font-size: 1.45rem; margin-bottom: 24px; }
+.print-sheet--answers > ol { columns: 4; column-gap: 28px; margin: 0; }
+.print-sheet--answers > ol > li { break-inside: avoid; margin-bottom: 7px; overflow-wrap: anywhere; padding-left: 4px; }
+.teacher-preview-empty { align-items: center; color: var(--teacher-ink); display: flex; flex-direction: column; margin: auto; max-width: 280px; text-align: center; }
 .teacher-preview-empty span { font-size: 4rem; }
 .teacher-dialog-footer { border-top: 1px solid var(--teacher-line); padding: 14px 22px; }
 
@@ -294,7 +343,7 @@
   .teacher-topbar { gap: 10px; grid-template-columns: auto 1fr auto; padding-inline: 20px; }
   .teacher-topbar nav { justify-content: center; }
   .teacher-topbar nav button { padding-inline: 11px; }
-  .teacher-quiet-button { display: none; }
+  .teacher-quiet-button { min-width: max-content; padding-inline: 12px; }
   .teacher-page-heading { grid-template-columns: 1fr; }
   .teacher-heading-actions, .teacher-heading-note { grid-column: 1; grid-row: auto; margin-top: 18px; }
   .teacher-builder { grid-template-columns: 1fr; }
@@ -350,16 +399,37 @@
 }
 
 @media print {
-  body:has(.teacher-print-dialog[open]) > *:not(.teacher-tools),
+  html, body, #root, .fluency-app, .teacher-tools, .teacher-print-dialog, .teacher-print-preview { background: white !important; }
+  .teacher-print-dialog::backdrop { backdrop-filter: none; background: white; }
+  .fluency-app:has(.teacher-print-dialog[open]) > *:not(.teacher-tools),
   .teacher-tools > *:not(.teacher-print-dialog),
   .teacher-print-dialog > header,
   .teacher-print-controls,
   .teacher-dialog-footer { display: none !important; }
-  .teacher-print-dialog[open] { display: block; height: auto; inset: 0; margin: 0; max-height: none; max-width: none; position: absolute; width: 100%; }
+  .fluency-app:has(.teacher-print-dialog[open]),
+  .teacher-tools:has(.teacher-print-dialog[open]) { background: white; min-height: 0; overflow: visible; }
+  .teacher-print-dialog[open] { border-radius: 0; box-shadow: none; display: block; height: auto; inset: auto; margin: 0; max-height: none; max-width: none; overflow: visible; position: static; width: 100%; }
   .teacher-print-layout { display: block; height: auto; }
   .teacher-print-preview { background: white; display: block; overflow: visible; padding: 0; }
-  .print-sheet, .teacher-print-preview.landscape .print-sheet { aspect-ratio: auto; box-shadow: none; min-height: 0; padding: 12mm; width: 100%; }
-  .teacher-print-preview.format-strip .print-sheet { height: 99mm; max-height: 99mm; min-height: 99mm; overflow: hidden; padding: 8mm 12mm; width: 210mm; }
-  .teacher-print-preview.format-strip .print-answers { break-before: auto; }
-  .print-answers { break-before: page; }
+  .print-sheet,
+  .teacher-print-preview.landscape .print-sheet { aspect-ratio: auto; break-after: auto; box-shadow: none; box-sizing: border-box; min-height: 0; padding: 12mm; width: 100%; }
+  .print-sheet--questions > ol > li,
+  .print-choices,
+  .print-visual { break-inside: avoid; page-break-inside: avoid; }
+  .teacher-print-preview.format-strip .print-sheet--questions { break-after: auto; height: 99mm; margin-inline: auto; max-height: 99mm; min-height: 99mm; overflow: visible; padding: 5mm 8mm; width: 210mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions h1 { font-size: 14pt; margin-block: 0 2mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions header p { font-size: 7pt; margin-bottom: 1.5mm; padding-bottom: 1mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions > ol { column-gap: 4mm; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 2mm; row-gap: 2mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions > ol > li { font-size: 8pt; line-height: 1.16; min-height: 0; padding-inline: 6mm 1mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions > ol > li > strong { font-size: 9.5pt; line-height: 1.14; }
+  .teacher-print-preview.format-strip .print-sheet--questions > ol > li > small { font-size: 7pt; line-height: 1.15; margin-top: 1mm; }
+  .teacher-print-preview.format-strip .print-choices { font-size: 7pt; gap: 1mm 2mm; margin-top: 1mm; padding-left: 4mm; }
+  .teacher-print-preview.format-strip .print-sheet--questions .print-visual { margin-block: 1mm; max-height: 14mm; }
+  .teacher-print-preview.format-strip .print-relationship { display: grid; font-size: 7pt; gap: 1mm; grid-template-columns: auto 1fr auto; min-height: 9mm; }
+  .teacher-print-preview.format-strip .print-relationship > * { border-bottom: 0; min-width: 0; padding: 0; }
+  .teacher-print-preview.has-answer-sheet.format-a4 .print-sheet--questions > ol > li:last-child { break-after: page; }
+  .teacher-print-preview.without-answer-sheet.format-a4 .print-sheet--questions { padding-bottom: 0; }
+  .teacher-print-preview.without-answer-sheet.format-a4 .print-sheet--questions > ol { margin-bottom: 0; }
+  .print-sheet--answers { break-before: auto; break-after: auto; min-height: 0; }
+  .teacher-print-preview.format-strip .print-sheet--answers { break-before: page; }
 }

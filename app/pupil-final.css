@@ -16,6 +16,57 @@
   width: 1px;
 }
 
+.storage-warning {
+  align-items: center;
+  align-self: center;
+  background: var(--paper-light);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  color: var(--ink);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: max(12px, env(safe-area-inset-top)) auto 0;
+  max-width: min(920px, calc(100% - 32px));
+  padding: 10px 12px 10px 16px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+
+.storage-warning span {
+  line-height: 1.45;
+}
+
+.storage-warning button {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--indigo-deep);
+  flex: 0 0 auto;
+  font-weight: 700;
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+@media (max-width: 540px) {
+  .storage-warning {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .storage-warning button {
+    align-self: flex-start;
+  }
+}
+
+@media print {
+  .storage-warning {
+    display: none !important;
+  }
+}
+
 .setup-screen {
   align-items: stretch;
   display: flex;
@@ -60,6 +111,27 @@
 .setup-screen .header-text-button {
   font-size: 0.9rem;
   min-height: 48px;
+}
+
+.setup-screen .fullscreen-button {
+  flex: 0 0 auto;
+  min-width: 122px;
+}
+
+.setup-screen .fullscreen-button span {
+  display: inline;
+  font-size: 0.92rem;
+}
+
+.setup-screen .fullscreen-button span::after,
+.setup-screen .setup-header-actions .header-text-button::after {
+  content: none;
+}
+
+.setup-screen .setup-header-actions .header-text-button {
+  font-size: 0.92rem;
+  min-width: 72px;
+  padding-inline: 12px;
 }
 
 .setup-screen .fullscreen-button,
@@ -184,7 +256,7 @@
 }
 
 .setup-screen .axis__labels {
-  color: #607590;
+  color: var(--blue-faded);
   font-size: clamp(0.875rem, 1.2vw, 0.96rem);
   font-weight: 590;
   margin-top: 17px;
@@ -466,17 +538,6 @@
     max-width: 92px;
   }
 
-  .setup-screen .setup-header-actions .header-text-button {
-    font-size: 0;
-    min-width: 48px;
-    padding: 0;
-  }
-
-  .setup-screen .setup-header-actions .header-text-button::after {
-    content: "⚙";
-    font-size: 1.15rem;
-  }
-
   .setup-screen .setup-intro-copy {
     font-size: 1rem;
   }
@@ -496,30 +557,30 @@
   }
 
   .setup-screen .setup-header {
+    flex-wrap: wrap;
     gap: 6px;
   }
 
   .setup-screen .wordmark {
+    font-size: 0;
+    max-width: none;
+    white-space: nowrap;
+  }
+
+  .setup-screen .wordmark::after {
+    content: "Y4";
     font-size: 0.9rem;
-    max-width: 68px;
   }
 
   .setup-screen .setup-header-actions {
+    flex: 1 0 100%;
     gap: 2px;
+    justify-content: flex-end;
   }
 
   .setup-screen .fullscreen-button {
     gap: 5px;
     padding-inline: 8px;
-  }
-
-  .setup-screen .fullscreen-button span {
-    font-size: 0;
-  }
-
-  .setup-screen .fullscreen-button span::after {
-    content: "Full";
-    font-size: 0.875rem;
   }
 
   .setup-screen .axis__labels {
@@ -677,19 +738,25 @@
   flex-direction: column;
   min-height: 100svh;
   overflow-y: auto;
-  padding: clamp(18px, 2.4vw, 32px) clamp(18px, 4vw, 60px) clamp(28px, 4vw, 52px);
+  padding: 12px clamp(18px, 4vw, 60px) clamp(28px, 4vw, 52px);
 }
 
 .practice-screen .practice-header {
   align-items: center;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   display: grid;
   flex: 0 0 auto;
   gap: 16px;
   grid-template-columns: minmax(92px, 1fr) auto minmax(250px, 1fr);
   margin: 0 auto;
   max-width: 1480px;
-  min-height: 54px;
+  min-height: 66px;
+  padding: 5px 0;
+  position: sticky;
+  top: 0;
   width: 100%;
+  z-index: 40;
 }
 
 .practice-screen .header-text-button,
@@ -699,9 +766,40 @@
   min-height: 48px;
 }
 
+.practice-screen .fullscreen-button {
+  flex: 0 0 auto;
+  min-width: 122px;
+}
+
+.practice-screen .fullscreen-button span {
+  display: inline;
+  font-size: 0.92rem;
+}
+
+.practice-screen .fullscreen-button span::after,
+.practice-screen .practice-tools .header-text-button::after {
+  content: none;
+}
+
+.practice-screen .practice-tools .header-text-button {
+  font-size: 0.92rem;
+  min-width: 72px;
+  padding-inline: 12px;
+}
+
 .practice-screen .practice-tools {
+  align-items: center;
+  display: flex;
   gap: 8px;
+  justify-content: flex-end;
   opacity: 1;
+}
+
+.practice-screen .practice-tools .board-button {
+  border: 0;
+  color: var(--ink-soft);
+  min-width: 130px;
+  padding-inline: 12px;
 }
 
 .practice-screen .session-pulse {
@@ -710,11 +808,11 @@
 }
 
 .practice-screen .control-drawer {
-  margin: 8px auto 0;
+  margin: 10px auto 0;
   opacity: 1;
   position: static;
   transform: none;
-  width: min(94vw, 760px);
+  width: min(calc(100vw - 36px), 820px);
 }
 
 .practice-screen .practice-header > .header-text-button,
@@ -726,11 +824,86 @@
 }
 
 .practice-screen .control-drawer__tab {
-  font-size: 0.9rem;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  font-size: 0.96rem;
+  font-weight: 700;
+  gap: 10px;
   letter-spacing: 0;
-  min-height: 46px;
-  padding-inline: 20px;
+  min-height: 48px;
+  padding-inline: 16px;
   text-transform: none;
+}
+
+.practice-screen .control-drawer__tab:hover,
+.practice-screen .control-drawer__tab:focus-visible {
+  background: rgba(35, 54, 91, 0.055);
+  color: var(--indigo-deep);
+}
+
+.practice-screen .control-drawer__tab i {
+  align-items: center;
+  display: inline-flex;
+  font-size: 1.18rem;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.practice-screen .control-drawer__body {
+  border-radius: 18px;
+  box-shadow: 0 16px 44px rgba(35, 54, 91, 0.08);
+  gap: 26px;
+  padding: 24px;
+}
+
+.practice-screen .control-drawer__notice {
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.practice-screen .practice-teacher-option {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding-top: 20px;
+}
+
+.practice-screen .practice-teacher-option > div {
+  display: grid;
+  gap: 4px;
+}
+
+.practice-screen .practice-teacher-option strong {
+  color: var(--indigo-deep);
+  font-size: 0.98rem;
+}
+
+.practice-screen .practice-teacher-option span {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.practice-screen .practice-teacher-option button {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--indigo-deep);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  min-height: 48px;
+  padding-inline: 18px;
 }
 
 .practice-screen .practice-workspace,
@@ -741,7 +914,7 @@
   justify-content: center;
   min-height: 0;
   overflow: visible;
-  padding: clamp(48px, 7vh, 86px) 0 12px;
+  padding: clamp(28px, 5vh, 58px) 0 12px;
   width: 100%;
 }
 
@@ -753,7 +926,7 @@
   flex-direction: column;
   grid-template-columns: none;
   justify-content: center;
-  max-width: 1240px;
+  max-width: 1120px;
   min-height: 0;
   padding: 0;
   width: 100%;
@@ -766,7 +939,9 @@
 }
 
 .practice-screen .question-instruction {
+  color: var(--ink-soft);
   font-size: clamp(1.25rem, 1.75vw, 1.58rem);
+  font-weight: 580;
   line-height: 1.38;
   margin: 0 0 18px;
   max-width: 880px;
@@ -812,8 +987,13 @@
   padding: 0 22px 10px;
 }
 
+.practice-screen .answer-display[data-empty="true"] span {
+  color: var(--ink-soft);
+}
+
 .practice-screen .response-dock {
   align-items: center;
+  border-top: 1px solid var(--line);
   display: grid;
   grid-template-areas:
     "answer"
@@ -822,12 +1002,15 @@
     "actions"
     "secondary";
   justify-items: center;
+  margin-top: clamp(22px, 3vh, 34px);
   max-width: 760px;
+  padding-top: clamp(20px, 3vh, 30px);
   width: 100%;
 }
 
 .practice-screen .response-dock > .answer-display {
   grid-area: answer;
+  margin-top: 0;
 }
 
 .practice-screen .response-dock > .feedback-line {
@@ -937,10 +1120,14 @@
 }
 
 .practice-screen .check-button:disabled {
-  background: transparent;
+  background: var(--paper-light);
   border-color: var(--line-strong);
-  color: var(--blue-faded);
+  color: var(--ink-soft);
   opacity: 1;
+}
+
+.practice-screen .check-button {
+  font-weight: 760;
 }
 
 .practice-screen .question-secondary-actions {
@@ -952,6 +1139,7 @@
 .practice-screen .question-secondary-actions button {
   font-size: 0.95rem;
   min-height: 48px;
+  min-width: 44px;
   padding-inline: 10px;
 }
 
@@ -964,7 +1152,7 @@
   grid-column: auto;
   grid-row: auto;
   justify-self: auto;
-  margin: clamp(22px, 3vh, 34px) auto 0;
+  margin: clamp(18px, 2.5vh, 28px) auto 0;
   max-height: none;
   max-width: 780px;
   order: initial;
@@ -976,11 +1164,45 @@
 }
 
 .practice-screen .question-panel > .scaffold > div {
-  background: rgba(255, 254, 250, 0.58);
+  background: rgba(255, 254, 250, 0.72);
   border: 1px solid var(--line);
   border-left: 4px solid var(--blue-faded);
   border-radius: 16px;
-  padding: 20px 24px;
+  padding: 18px 22px;
+}
+
+.practice-screen .scaffold__heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.practice-screen .scaffold__heading > span {
+  color: var(--blue-faded);
+  font-size: 0.88rem;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.practice-screen .scaffold__heading > button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
+.practice-screen .scaffold__heading > button:hover,
+.practice-screen .scaffold__heading > button:focus-visible {
+  background: rgba(35, 54, 91, 0.055);
+  color: var(--indigo-deep);
 }
 
 .practice-screen .scaffold > div > span,
@@ -1541,19 +1763,6 @@
     gap: 3px;
   }
 
-  .practice-screen .fullscreen-button span,
-  .practice-screen .practice-tools .header-text-button {
-    font-size: 0;
-    min-width: 48px;
-    padding: 0;
-  }
-
-  .practice-screen .practice-tools .header-text-button::after {
-    content: "⚙";
-    font-size: 1.15rem;
-    letter-spacing: 0;
-  }
-
   .practice-screen .practice-workspace,
   .practice-screen .practice-workspace:has(.scaffold) {
     padding-top: 48px;
@@ -1591,21 +1800,6 @@
 }
 
 @media (max-width: 540px) {
-  .practice-screen .board-button {
-    font-size: 0;
-    min-width: 48px;
-    padding: 0;
-  }
-
-  .practice-screen .board-button::after {
-    content: "Teach";
-    font-size: 0.875rem;
-  }
-
-  .practice-screen .board-button[aria-pressed="true"]::after {
-    content: "Exit";
-  }
-
   .practice-screen .board-more__panel {
     bottom: max(16px, env(safe-area-inset-bottom));
     left: 50%;
@@ -1773,10 +1967,6 @@
 }
 
 @media (max-width: 350px) {
-  .setup-screen .fullscreen-button[aria-pressed="true"] span::after {
-    content: "Exit";
-  }
-
   .board-mode .practice-screen .array-model {
     gap: 6px;
     grid-template-columns: repeat(var(--array-columns), 16px);
@@ -1947,6 +2137,162 @@
   .practice-screen .practice-workspace,
   .practice-screen .practice-workspace:has(.scaffold) {
     padding-top: 16px;
+  }
+}
+
+/* Phone anchor labels are navigation landmarks, not a sentence. Keep the
+   truthful ends and only the useful midpoint so every word has room. */
+@media (max-width: 540px) {
+  .setup-screen #challenge ~ .axis__labels {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    white-space: normal;
+  }
+
+  .setup-screen #challenge ~ .axis__labels span:nth-child(2),
+  .setup-screen #challenge ~ .axis__labels span:nth-child(4) {
+    display: none;
+  }
+
+  .setup-screen #challenge ~ .axis__labels span:nth-child(1) {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .setup-screen #challenge ~ .axis__labels span:nth-child(3) {
+    justify-self: center;
+    text-align: center;
+  }
+
+  .setup-screen #challenge ~ .axis__labels span:nth-child(5) {
+    justify-self: end;
+    text-align: right;
+  }
+
+  .setup-screen #support ~ .axis__labels {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    white-space: normal;
+  }
+
+  .setup-screen #support ~ .axis__labels span:nth-child(2),
+  .setup-screen #support ~ .axis__labels span:nth-child(3) {
+    display: none;
+  }
+
+  .setup-screen #support ~ .axis__labels span:first-child {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .setup-screen #support ~ .axis__labels span:last-child {
+    justify-self: end;
+    text-align: right;
+  }
+}
+
+@media (max-width: 620px) {
+  .practice-screen {
+    padding: 8px 14px max(28px, env(safe-area-inset-bottom));
+  }
+
+  .practice-screen .practice-header {
+    grid-template-columns: auto 1fr;
+    min-height: 64px;
+    row-gap: 4px;
+  }
+
+  .practice-screen .practice-tools {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .practice-screen .session-pulse {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 28px;
+  }
+
+  .practice-screen .fullscreen-button {
+    min-width: 116px;
+    padding-inline: 11px;
+  }
+
+  .practice-screen .practice-tools .header-text-button {
+    min-width: 68px;
+    padding-inline: 8px;
+  }
+
+  .practice-screen .control-drawer__body {
+    gap: 22px;
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .practice-screen .practice-workspace,
+  .practice-screen .practice-workspace:has(.scaffold) {
+    padding-top: 24px;
+  }
+
+  .practice-screen .question-panel > .scaffold {
+    width: 100%;
+  }
+
+  .practice-screen .question-panel > .scaffold > div {
+    padding: 16px 17px;
+  }
+
+  .practice-screen .response-dock {
+    margin-top: 20px;
+    padding-top: 18px;
+  }
+
+  .practice-screen .practice-teacher-option {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .practice-screen .practice-teacher-option button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .setup-screen .fullscreen-button {
+    min-width: 108px;
+    padding-inline: 9px;
+  }
+
+  .practice-screen .practice-tools {
+    gap: 1px;
+  }
+
+  .practice-screen .fullscreen-button {
+    min-width: 108px;
+    padding-inline: 8px;
+  }
+
+  .practice-screen .fullscreen-button span,
+  .setup-screen .fullscreen-button span {
+    font-size: 0.86rem;
+  }
+
+  .practice-screen .practice-tools .header-text-button {
+    font-size: 0.86rem;
+    min-width: 62px;
+    padding-inline: 5px;
+  }
+
+  .board-mode .practice-screen .practice-tools .header-text-button {
+    display: none;
+  }
+
+  .board-mode .practice-screen .practice-tools .board-button {
+    font-size: 0.84rem;
+    min-width: 112px;
+    padding-inline: 7px;
   }
 }
 

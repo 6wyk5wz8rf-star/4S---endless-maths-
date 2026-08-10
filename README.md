@@ -110,4 +110,4 @@ The service worker does not interrupt an active session. When a newer cached bui
 
 ## Release verification
 
-Automated release checks cover TypeScript, 57 unit/integration tests, a production build, the mathematical continuum, 21,000 Build 3 samples, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.
+Automated release checks cover TypeScript, 70 unit/integration tests, a production build, the mathematical continuum, 21,000 Build 3 samples, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.

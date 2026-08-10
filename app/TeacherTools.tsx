@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { normalisePrintMathText, normalisePrintVisual, printPageRule } from "@/lib/classroom-print.mjs";
 import "./teacher.css";
 
 export type TeacherDestination = "start" | "build" | "review" | "settings";
@@ -170,7 +171,7 @@ export type PrintOptions = {
 
 export type PrintPreview = {
   title: string;
-  questions: Array<{ number: number; display: string; support?: string; answer?: string; visual?: unknown }>;
+  questions: Array<{ number: number; type?: string; display: string; choices?: string[]; support?: string; answer?: string; visual?: unknown }>;
 };
 
 export type TeacherToolsProps = {
@@ -344,56 +345,77 @@ function configSummary(config: TeacherSessionConfig) {
 }
 
 function PrintMathText({ value }: { value: string }) {
-  const segments = String(value).split(/(\[\[-?\d+\/-?\d+\]\])/g);
+  const segments = normalisePrintMathText(value).split(/(\[\[(?:-?\d+|□)\/(?:-?\d+|□)\]\](?:\u2060?[.,;:!?])?)/g);
   return <>{segments.map((segment, index) => {
-    const fraction = segment.match(/^\[\[(-?\d+)\/(-?\d+)\]\]$/);
+    const fraction = segment.match(/^\[\[((?:-?\d+)|□)\/((?:-?\d+)|□)\]\](?:\u2060?([.,;:!?]))?$/);
     if (!fraction) return <span key={`${segment}-${index}`}>{segment}</span>;
-    return <span className="teacher-print-fraction" aria-label={`${fraction[1]} over ${fraction[2]}`} key={`${segment}-${index}`}><span>{fraction[1]}</span><span>{fraction[2]}</span></span>;
+    const label = `${fraction[1] === "□" ? "blank" : fraction[1]} over ${fraction[2] === "□" ? "blank" : fraction[2]}`;
+    const valueNode = <span className="teacher-print-fraction" role="img" aria-label={label}><span>{fraction[1]}</span><span>{fraction[2]}</span></span>;
+    return fraction[3]
+      ? <span className="teacher-print-math-unit" key={`${segment}-${index}`}>{valueNode}{fraction[3]}</span>
+      : <span key={`${segment}-${index}`}>{valueNode}</span>;
   })}</>;
 }
 
 function PrintVisualModel({ visual }: { visual: unknown }) {
-  if (!visual || typeof visual !== "object") return null;
-  const source = visual as Record<string, unknown>;
-  const kind = String(source.kind ?? "");
-  const title = String(source.title ?? "Mathematical model");
-  const number = (value: unknown, fallback: number) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-  const bounded = (value: unknown, fallback: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(number(value, fallback))));
+  const model = normalisePrintVisual(visual) as any;
+  if (!model) return null;
+  const format = (value: number) => value.toLocaleString("en-GB", { maximumFractionDigits: 2 });
 
-  if (kind === "number-line") {
-    const min = number(source.min, 0);
-    const max = Math.max(min + 1, number(source.max, min + 10));
-    const tickCount = bounded(source.ticks, 6, 2, 11);
-    const rawPoints = Array.isArray(source.points) ? source.points : Array.isArray(source.markers) ? source.markers : [];
-    const points = rawPoints.map((point) => number(point, min)).filter((point) => point >= min && point <= max).slice(0, 5);
-    return <div className="print-visual print-number-line" role="img" aria-label={`${title}. Number line from ${min} to ${max}${points.length ? `, marked at ${points.join(", ")}` : ""}.`}><div className="print-number-line__track">{Array.from({ length: tickCount }, (_, index) => <i key={index} style={{ left: `${index / (tickCount - 1) * 100}%` }} />)}{points.map((point, index) => <b key={`${point}-${index}`} style={{ left: `${(point - min) / (max - min) * 100}%` }}><span>{point}</span></b>)}</div><footer><span>{min}</span><span>{max}</span></footer></div>;
+  if (model.kind === "number-line" || model.kind === "bead-string") {
+    const markerDescription = model.markers.map((marker: number, index: number) => model.unknown === index ? `marker ${index + 1} is the missing value` : `marker ${index + 1} is at ${format(marker)}`).join("; ");
+    return <div className="print-visual print-number-line" role="img" aria-label={`${model.title}. Number line from ${format(model.min)} to ${format(model.max)}${markerDescription ? `; ${markerDescription}` : ""}.`}><div className="print-number-line__track">{Array.from({ length: model.ticks }, (_, index) => <i key={index} style={{ left: `${index / Math.max(1, model.ticks - 1) * 100}%` }} />)}{model.markers.map((marker: number, index: number) => <b key={index} style={{ left: `${(marker - model.min) / (model.max - model.min) * 100}%` }}><span>{model.unknown === index ? "□" : format(marker)}</span></b>)}</div><footer><span>{format(model.min)}</span><span>{format(model.max)}</span></footer></div>;
   }
 
-  if (kind === "fraction-strip" || kind === "bar-model") {
-    const segments = bounded(source.denominator ?? source.segments, 4, 1, 12);
-    const filled = bounded(source.numerator ?? source.filled, 0, 0, segments);
-    return <div className="print-visual print-fraction-bar" role="img" aria-label={`${title}. A bar divided into ${segments} equal parts; ${filled} ${filled === 1 ? "part is" : "parts are"} marked.`}>{Array.from({ length: segments }, (_, index) => <i className={index < filled ? "is-filled" : ""} key={index} />)}</div>;
+  if (model.kind === "fraction-strip" || model.kind === "bar-model") {
+    return <div className="print-visual" role="img" aria-label={`${model.title}. A bar divided into ${model.segments} equal parts; ${model.filled} ${model.filled === 1 ? "part is" : "parts are"} marked${model.total === null ? "" : `; the whole is ${format(model.total)}`}.`}><div className="print-fraction-bar">{Array.from({ length: model.segments }, (_, index) => <i className={index < model.filled ? "is-filled" : ""} key={index} />)}</div>{model.total !== null && <small>whole = {format(model.total)}</small>}</div>;
   }
 
-  if (kind === "array" || kind === "multiplication-rectangle") {
-    const rows = bounded(source.rows, 2, 1, 10);
-    const columns = bounded(source.columns, 4, 1, 12);
-    const count = Math.min(rows * columns, 60);
-    return <div className="print-visual print-array" role="img" aria-label={`${title}. ${rows} rows of ${columns}.`} style={{ "--print-array-columns": Math.min(columns, 12) } as React.CSSProperties}>{Array.from({ length: count }, (_, index) => <i key={index} />)}</div>;
+  if (model.kind === "hundred-grid") {
+    return <div className="print-visual print-hundred-grid" role="img" aria-label={`${model.title}. ${model.filled} hundredths shaded.`}>{Array.from({ length: 100 }, (_, index) => <i className={index < model.filled ? "is-filled" : ""} key={index} />)}</div>;
   }
 
-  if (kind === "groups" || kind === "counters") {
-    const groups = bounded(source.groups, 4, 1, 10);
-    const perGroup = bounded(source.perGroup ?? source.groupSize, 3, 1, 12);
-    return <div className="print-visual print-groups" role="img" aria-label={`${title}. ${groups} equal groups of ${perGroup}.`}>{Array.from({ length: groups }, (_, group) => <span key={group}>{Array.from({ length: Math.min(perGroup, 12) }, (_, index) => <i key={index} />)}</span>)}</div>;
+  if (model.kind === "array") {
+    const count = Math.min(model.rows * model.columns, 144);
+    return <div className="print-visual print-array" role="img" aria-label={`${model.title}. ${model.rows} rows of ${model.columns}.`} style={{ "--print-array-columns": Math.min(model.columns, 24) } as React.CSSProperties}>{Array.from({ length: count }, (_, index) => <i key={index} />)}</div>;
   }
 
-  if (kind === "place-value" || kind === "base-ten") {
-    const value = Math.max(0, Math.round(number(source.value ?? source.total, 0)));
-    const rawRows = Array.isArray(source.rows) ? source.rows : [];
-    const firstRow = Array.isArray(rawRows[0]) ? (rawRows[0] as unknown[]).map((digit) => number(digit, 0)).slice(-4) : null;
-    const digits = firstRow?.length ? [...Array(Math.max(0, 4 - firstRow.length)).fill(0), ...firstRow] : [Math.floor(value / 1000) % 10, Math.floor(value / 100) % 10, Math.floor(value / 10) % 10, value % 10];
-    return <div className="print-visual print-place-value" role="img" aria-label={`${title}. Thousands ${digits[0]}, hundreds ${digits[1]}, tens ${digits[2]}, ones ${digits[3]}.`}>{["Th", "H", "T", "O"].map((label, index) => <span key={label}><small>{label}</small><b>{digits[index]}</b></span>)}</div>;
+  if (model.kind === "partition" || model.kind === "multiplication-rectangle") {
+    const multiplier = model.kind === "partition" ? model.multiplier : model.factor;
+    return <div className="print-visual print-partition" role="img" aria-label={`${model.title}. ${model.parts.map((part: number) => `${format(part)} multiplied by ${format(multiplier)}`).join(" and ")}.`}><b>× {format(multiplier)}</b><span>{model.parts.map((part: number) => `${format(part)} × ${format(multiplier)}`).join(" · ")}</span></div>;
+  }
+
+  if (model.kind === "groups" || model.kind === "counters") {
+    const shownGroups = Math.min(model.groups, 12);
+    const shownPerGroup = Math.min(model.perGroup, 12);
+    return <div className="print-visual print-groups" role="img" aria-label={`${model.title}. ${model.groups} equal groups of ${model.perGroup}, total ${model.total}.`}>{Array.from({ length: shownGroups }, (_, group) => <span key={group}><small>{model.perGroup}</small>{Array.from({ length: shownPerGroup }, (_, index) => <i key={index} />)}</span>)}</div>;
+  }
+
+  if (model.kind === "ten-frame") {
+    return <div className="print-visual print-ten-frame" role="img" aria-label={`${model.title}. ${model.filled} of ${model.total} spaces filled.`}>{Array.from({ length: model.total }, (_, index) => <i className={index < model.filled ? "is-filled" : ""} key={index} />)}</div>;
+  }
+
+  if (model.kind === "place-value") {
+    const rowDescription = model.rows.map((row: number[], index: number) => `${index > 0 && model.operator ? `${model.operator} ` : ""}${row.join("")}`).join("; ");
+    return <div className="print-visual print-place-value-grid" role="img" aria-label={`${model.title}. Place-value rows: ${rowDescription}.`}><header>{["Th", "H", "T", "O"].map((label) => <small key={label}>{label}</small>)}</header>{model.rows.map((row: number[], rowIndex: number) => <div key={rowIndex}>{rowIndex > 0 && <b>{model.operator}</b>}{row.slice(-4).map((digit: number, index: number) => <span key={index}>{digit}</span>)}</div>)}</div>;
+  }
+
+  if (model.kind === "base-ten") {
+    const value = Math.max(0, Math.round(model.value));
+    const digits = [Math.floor(value / 1000) % 10, Math.floor(value / 100) % 10, Math.floor(value / 10) % 10, value % 10];
+    return <div className="print-visual print-place-value" role="img" aria-label={`${model.title}. Thousands ${digits[0]}, hundreds ${digits[1]}, tens ${digits[2]}, ones ${digits[3]}.`}>{["Th", "H", "T", "O"].map((label, index) => <span key={label}><small>{label}</small><b>{digits[index]}</b></span>)}</div>;
+  }
+
+  if (model.kind === "part-whole") {
+    return <div className="print-visual print-part-whole" role="img" aria-label={`${model.title}. ${format(model.whole)} split into ${model.parts.map(format).join(" and ")}.`}><strong>{format(model.whole)}</strong><span>{model.parts.map(format).join(" + ")}</span></div>;
+  }
+
+  if (model.kind === "relationship") {
+    return <div className="print-visual print-relationship" role="img" aria-label={`${model.title}. ${model.left} ${model.connector} ${model.right}.`}><PrintMathText value={model.left} /><small>{model.connector}</small><PrintMathText value={model.right} /></div>;
+  }
+
+  if (model.kind === "worked-example") {
+    return <div className="print-visual print-worked" role="img" aria-label={`${model.title}. ${model.lines.join(". ")}.`}>{model.lines.map((line: string, index: number) => <span key={index}><PrintMathText value={line} /></span>)}</div>;
   }
 
   return null;
@@ -401,16 +423,23 @@ function PrintVisualModel({ visual }: { visual: unknown }) {
 
 function Dialog({ open, title, onClose, children, className = "" }: { open: boolean; title: string; onClose: () => void; children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const node = ref.current;
-    if (!node) return;
-    if (open && !node.open) node.showModal();
-    if (!open && node.open) node.close();
+    if (!node || !open) return undefined;
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!node.open) node.showModal();
+    return () => {
+      if (node.open) node.close();
+      const opener = previousFocus.current;
+      if (opener?.isConnected) window.requestAnimationFrame(() => opener.focus());
+    };
   }, [open]);
   if (!open) return null;
   return (
-    <dialog className={`teacher-dialog ${className}`} ref={ref} onCancel={(event) => { event.preventDefault(); onClose(); }}>
-      <header><h2>{title}</h2><button className="teacher-icon-button" type="button" onClick={onClose} aria-label={`Close ${title}`}>×</button></header>
+    <dialog className={`teacher-dialog ${className}`} ref={ref} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }}>
+      <header><h2 id={titleId}>{title}</h2><button className="teacher-icon-button" type="button" onClick={onClose} aria-label={`Close ${title}`}>×</button></header>
       {children}
     </dialog>
   );
@@ -450,6 +479,7 @@ export function TeacherTools(props: TeacherToolsProps) {
   const [linkBusy, setLinkBusy] = useState(false);
   const [printBusy, setPrintBusy] = useState(false);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
+  const printSeedRef = useRef<string | null>(null);
   const [printOptions, setPrintOptions] = useState<PrintOptions>({ format: "a4", questions: 10, orientation: "portrait", answerSheet: true, nameLine: true, title: "Year 4 Fluency", blackAndWhite: true });
   const [reviewGroup, setReviewGroup] = useState("all");
   const [reviewStrand, setReviewStrand] = useState("all");
@@ -461,6 +491,7 @@ export function TeacherTools(props: TeacherToolsProps) {
   const [settingsSection, setSettingsSection] = useState<"accessibility" | "profiles" | "data">("accessibility");
 
   useEffect(() => setPrintPreview(null), [printOptions]);
+  useEffect(() => { if (!printDialog) printSeedRef.current = null; }, [printDialog]);
   useEffect(() => {
     if (printOptions.format === "strip" && printOptions.questions > 10) {
       setPrintOptions((current) => ({ ...current, questions: 10 }));
@@ -572,23 +603,45 @@ export function TeacherTools(props: TeacherToolsProps) {
 
   async function makePrintPreview() {
     if (!props.onRequestPrintPreview) return;
+    const stableSeed = config.seedMode === "same"
+      ? (config.seed?.trim() || "year-4-fluency")
+      : (printSeedRef.current ?? `print-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+    printSeedRef.current = stableSeed;
+    const printConfig = { ...config, seedMode: "same" as const, seed: stableSeed };
     setPrintBusy(true);
-    try { setPrintPreview(await props.onRequestPrintPreview(config, printOptions)); }
+    try { setPrintPreview(await props.onRequestPrintPreview(printConfig, printOptions)); }
     finally { setPrintBusy(false); }
+  }
+
+  function printDocument() {
+    document.getElementById("year4-fluency-print-page")?.remove();
+    const style = document.createElement("style");
+    style.id = "year4-fluency-print-page";
+    style.textContent = printPageRule(printOptions);
+    document.head.append(style);
+    let cleanupTimer = 0;
+    const cleanup = () => {
+      window.clearTimeout(cleanupTimer);
+      window.removeEventListener("afterprint", cleanup);
+      style.remove();
+    };
+    window.addEventListener("afterprint", cleanup, { once: true });
+    cleanupTimer = window.setTimeout(cleanup, 60_000);
+    window.print();
   }
 
   return (
     <div className={["teacher-tools", props.accessibility.largerText ? "teacher-larger-text" : "", props.accessibility.highContrast ? "teacher-high-contrast" : "", props.accessibility.reducedMotion ? "teacher-reduced-motion" : "", props.accessibility.simplifiedDensity ? "teacher-simplified-density" : "", props.accessibility.largerTargets ? "teacher-larger-targets" : ""].filter(Boolean).join(" ")}>
       <a className="teacher-skip-link" href="#teacher-main">Skip to teacher tools</a>
       <header className="teacher-topbar">
-        <button type="button" className="teacher-brand" onClick={props.onClose} aria-label="Return to pupil practice"><i aria-hidden="true" />Fluency <span>Teacher</span></button>
+        <div className="teacher-brand"><i aria-hidden="true" />Fluency <span>Teacher</span></div>
         <nav aria-label="Teacher tools">
           {navItems.map((item) => <button key={item.id} type="button" aria-current={destination === item.id ? "page" : undefined} onClick={() => changeDestination(item.id)}>{item.label}</button>)}
         </nav>
-        <div className="teacher-topbar__actions"><button type="button" className="teacher-quiet-button" onClick={props.onLock}>Lock tools</button><button type="button" className="teacher-icon-button" onClick={props.onClose} aria-label="Close teacher tools">×</button></div>
+        <div className="teacher-topbar__actions"><button type="button" className="teacher-quiet-button" onClick={props.onLock}>Pupil view</button></div>
       </header>
 
-      <main id="teacher-main" className="teacher-main">
+      <main id="teacher-main" className="teacher-main" tabIndex={-1}>
         {destination === "start" && (
           <div className="teacher-page teacher-start-page">
             <header className="teacher-page-heading"><p>Teacher start</p><h1>What should the children practise now?</h1><div className="teacher-heading-actions"><button className="teacher-secondary-button" type="button" onClick={() => { setEditingPresetId(null); setConfig(DEFAULT_TEACHER_CONFIG); changeDestination("build"); }}>Build a session</button></div></header>
@@ -636,17 +689,41 @@ export function TeacherTools(props: TeacherToolsProps) {
             <div className="teacher-settings-layout"><nav aria-label="Settings sections"><button type="button" aria-current={settingsSection === "accessibility" ? "page" : undefined} onClick={() => setSettingsSection("accessibility")}>Accessibility</button><button type="button" aria-current={settingsSection === "profiles" ? "page" : undefined} onClick={() => setSettingsSection("profiles")}>Profiles and groups</button><button type="button" aria-current={settingsSection === "data" ? "page" : undefined} onClick={() => setSettingsSection("data")}>Data and backup</button></nav><section className="teacher-settings-panel">
               {settingsSection === "accessibility" && <><div className="teacher-section-heading"><div><p>Adjustments</p><h2>Accessibility</h2></div></div><p className="teacher-lead">Useful controls for this device. No single preset is assumed to suit every child.</p><div className="teacher-settings-list">{([ ["largerText", "Larger text", "Increase pupil and teacher text."], ["highContrast", "High contrast", "Strengthen text and control contrast."], ["reducedMotion", "Reduced motion", "Use immediate state changes."], ["simplifiedDensity", "Simplified visual density", "Show fewer secondary details."], ["largerTargets", "Larger touch controls", "Increase interactive target size."], ["timedPressure", "Timed pressure", "Off keeps timers quiet and non-urgent."] ] as Array<[keyof AccessibilitySettings,string,string]>).map(([key,label,note]) => <label key={key}><span><b>{label}</b><small>{note}</small></span><input type="checkbox" checked={props.accessibility[key]} onChange={(event) => props.onSetAccessibility({ ...props.accessibility, [key]: event.target.checked })} /></label>)}</div><section className="teacher-subsection"><h3>Teacher access</h3><p>A four-digit code prevents accidental pupil access on this device. It is not an online account or strong security.</p><div className="teacher-inline-actions"><button className="teacher-secondary-button" type="button" onClick={() => { const code = window.prompt("Choose a four-digit code"); if (code === null) return; if (!/^\d{4}$/.test(code)) return window.alert("Use exactly four digits."); props.onSetTeacherCode?.(code); }}>{props.teacherCodeEnabled ? "Change local code" : "Add local code"}</button>{props.teacherCodeEnabled && <button className="teacher-text-button" type="button" onClick={() => { if (window.confirm("Remove the local teacher code from this device?")) props.onSetTeacherCode?.(null); }}>Remove code</button>}</div></section></>}
               {settingsSection === "profiles" && <><div className="teacher-section-heading"><div><p>Device-local</p><h2>Profiles and groups</h2></div><button className="teacher-primary-button" type="button" onClick={() => setProfileDialog(true)}>Add profiles</button></div><p className="teacher-lead">Profiles are optional. Guest practice always remains available.</p><label className="teacher-select-field teacher-privacy-field"><span>Profile-selection privacy</span><select value={props.profilePrivacy ?? "full"} onChange={(event) => props.onSetProfilePrivacy?.(event.target.value as NonNullable<TeacherToolsProps["profilePrivacy"]>)}><option value="full">Full display names</option><option value="first-and-initial">First name and initial</option><option value="initials">Initials only</option><option value="alias">Alias and symbol</option></select></label><div className="teacher-profile-admin">{activeProfiles.sort((a,b) => a.displayName.localeCompare(b.displayName)).map((profile) => <div key={profile.id}><span className="teacher-profile-symbol" aria-hidden="true">{profile.symbol ?? "●"}</span><span><strong>{profile.displayName}</strong><small>{profile.classLabel ?? "No class label"}</small></span><div><button type="button" onClick={() => props.onArchiveProfile?.(profile.id)}>Archive</button><button type="button" onClick={() => { if (window.confirm(`Delete ${profile.displayName}? Their local profile and evidence may be removed.`)) props.onDeleteProfile?.(profile.id); }}>Delete</button></div></div>)}</div><section className="teacher-subsection"><div className="teacher-section-heading"><div><h3>Groups</h3><p>For launching, filtering and printing.</p></div><button className="teacher-secondary-button" type="button" onClick={() => { setGroupProfileIds([]); setNewGroupName(""); setGroupDialog(true); }}>New group</button></div>{props.groups.length ? <ul className="teacher-group-list">{props.groups.map((group) => <li key={group.id}><strong>{group.name}</strong><span>{group.profileIds.length} profiles</span></li>)}</ul> : <EmptyState>No groups yet.</EmptyState>}</section></>}
-              {settingsSection === "data" && <><div className="teacher-section-heading"><div><p>Local data</p><h2>Export, import and reset</h2></div></div><p className="teacher-lead">Nothing synchronises automatically between devices. Exported files may contain pupil data and should be handled carefully.</p>{props.storageSummary && <p className="teacher-storage-summary">{props.storageSummary}</p>}<div className="teacher-data-actions"><section><h3>Evidence</h3><p>Move or inspect practice evidence without replacing current records.</p><div><button className="teacher-secondary-button" type="button" onClick={() => props.onExportEvidence?.("csv")}>CSV summary</button><button className="teacher-secondary-button" type="button" onClick={() => props.onExportEvidence?.("json")}>Export evidence</button><label className="teacher-file-button">Import evidence<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) props.onImportEvidence?.(file); event.target.value = ""; }} /></label></div></section><section><h3>Complete backup</h3><p>Profiles, groups, presets, settings, evidence and notes.</p><div><button className="teacher-secondary-button" type="button" onClick={props.onExportBackup}>Export all data</button><label className="teacher-file-button">Restore backup<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) props.onRestoreBackup?.(file); event.target.value = ""; }} /></label></div></section><section className="teacher-danger-zone"><h3>Data management</h3><p>Destructive actions ask for confirmation and say exactly what will be removed.</p><div><button type="button" onClick={() => { if (window.confirm("Clear completed session history? Profiles, unfinished practice and mathematical evidence will remain.")) props.onClearSessionHistory?.(); }}>Clear completed session history</button><button type="button" onClick={() => { if (window.confirm("Delete all local pupil evidence? Profiles and presets will remain.")) props.onDeleteAllEvidence?.(); }}>Delete all local pupil evidence</button><button type="button" onClick={() => { if (window.confirm("Reset the complete application on this device? Export a backup first if the data may be needed.")) props.onResetApplication?.(); }}>Reset application</button></div></section></div><footer className="teacher-version">Year 4 Fluency {props.appVersion ? `· ${props.appVersion}` : ""}</footer></>}
+              {settingsSection === "data" && <><div className="teacher-section-heading"><div><p>Local data</p><h2>Export, import and reset</h2></div></div><p className="teacher-lead">Nothing synchronises automatically between devices. Exported files may contain pupil data and should be handled carefully.</p>{props.storageSummary && <p className="teacher-storage-summary">{props.storageSummary}</p>}<div className="teacher-data-actions"><section><h3>Evidence</h3><p>Move or inspect practice evidence without replacing current records.</p><div><button className="teacher-secondary-button" type="button" onClick={() => props.onExportEvidence?.("csv")}>CSV summary</button><button className="teacher-secondary-button" type="button" onClick={() => props.onExportEvidence?.("json")}>Export evidence</button><label className="teacher-file-button">Import evidence<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) props.onImportEvidence?.(file); event.target.value = ""; }} /></label></div></section><section><h3>Complete backup</h3><p>Profiles, groups, presets, settings, evidence, notes, preferences, learning progress and unfinished practice.</p><div><button className="teacher-secondary-button" type="button" onClick={props.onExportBackup}>Export all data</button><label className="teacher-file-button">Restore backup<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) props.onRestoreBackup?.(file); event.target.value = ""; }} /></label></div></section><section className="teacher-danger-zone"><h3>Data management</h3><p>Destructive actions ask for confirmation and say exactly what will be removed.</p><div><button type="button" onClick={() => { if (window.confirm("Clear completed session history? Profiles, unfinished practice and mathematical evidence will remain.")) props.onClearSessionHistory?.(); }}>Clear completed session history</button><button type="button" onClick={() => { if (window.confirm("Delete all local pupil evidence? Profiles and presets will remain.")) props.onDeleteAllEvidence?.(); }}>Delete all local pupil evidence</button><button type="button" onClick={() => { if (window.confirm("Reset the complete application on this device? Export a backup first if the data may be needed.")) props.onResetApplication?.(); }}>Reset application</button></div></section></div><footer className="teacher-version">Year 4 Fluency {props.appVersion ? `· ${props.appVersion}` : ""}</footer></>}
             </section></div>
           </div>
         )}
       </main>
 
-      <Dialog open={profileDialog} title="Add pupil profiles" onClose={() => setProfileDialog(false)}><form className="teacher-dialog-form" onSubmit={createProfiles}><p>Paste or enter one name, initial or alias per line. No other personal details are needed.</p><label><span>Names or aliases</span><textarea rows={10} value={names} onChange={(event) => setNames(event.target.value)} placeholder={"Amina\nBen R\nCJ"} autoFocus /></label><label><span>Add to group <small>Optional</small></span><input type="text" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="4B" /></label><footer><button className="teacher-primary-button" type="submit">Create profiles</button><button className="teacher-text-button" type="button" onClick={() => setProfileDialog(false)}>Cancel</button></footer></form></Dialog>
+      <Dialog open={profileDialog} title="Add pupil profiles" onClose={() => setProfileDialog(false)}><form className="teacher-dialog-form" onSubmit={createProfiles}><p>Paste or enter one name, initial or alias per line. No other personal details are needed.</p><label><span>Names or aliases</span><textarea rows={10} required value={names} onChange={(event) => setNames(event.target.value)} placeholder={"Amina\nBen R\nCJ"} autoFocus /></label><label><span>Add to group <small>Optional</small></span><input type="text" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="4B" /></label><footer><button className="teacher-primary-button" type="submit" disabled={!names.trim()}>Create profiles</button><button className="teacher-text-button" type="button" onClick={() => setProfileDialog(false)}>Cancel</button></footer></form></Dialog>
       <Dialog open={groupDialog} title="Create a group" onClose={() => { setNewGroupName(""); setGroupProfileIds([]); setGroupDialog(false); }}><form className="teacher-dialog-form" onSubmit={(event) => { event.preventDefault(); if (newGroupName.trim() && groupProfileIds.length > 0) props.onCreateGroup?.(newGroupName.trim(), groupProfileIds); setNewGroupName(""); setGroupProfileIds([]); setGroupDialog(false); }}><label><span>Group name</span><input autoFocus required type="text" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} /></label><fieldset><legend>Profiles</legend><div className="teacher-dialog-checklist">{activeProfiles.map((profile) => <label key={profile.id}><input type="checkbox" checked={groupProfileIds.includes(profile.id)} onChange={(event) => setGroupProfileIds((current) => event.target.checked ? [...new Set([...current, profile.id])] : current.filter((id) => id !== profile.id))} />{profile.displayName}</label>)}</div></fieldset><footer><button className="teacher-primary-button" type="submit" disabled={!newGroupName.trim() || groupProfileIds.length === 0}>Create group</button><button className="teacher-text-button" type="button" onClick={() => { setNewGroupName(""); setGroupProfileIds([]); setGroupDialog(false); }}>Cancel</button></footer></form></Dialog>
-      <Dialog open={presetDialog} title="Save teacher preset" onClose={() => setPresetDialog(false)}><form className="teacher-dialog-form" onSubmit={(event) => { event.preventDefault(); if (!presetName.trim()) return; props.onSavePreset({ name: presetName.trim(), note: presetNote.trim() || undefined, config }); setPresetName(""); setPresetNote(""); setPresetDialog(false); }}><p>{configSummary(config)}</p><label><span>Preset name</span><input autoFocus type="text" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="4B Tuesday Warm-Up" /></label><label><span>Short note <small>Optional</small></span><input type="text" value={presetNote} onChange={(event) => setPresetNote(event.target.value)} placeholder="Before the fractions lesson" /></label><footer><button className="teacher-primary-button" type="submit">Save preset</button><button className="teacher-text-button" type="button" onClick={() => setPresetDialog(false)}>Cancel</button></footer></form></Dialog>
+      <Dialog open={presetDialog} title="Save teacher preset" onClose={() => setPresetDialog(false)}><form className="teacher-dialog-form" onSubmit={(event) => { event.preventDefault(); if (!presetName.trim()) return; props.onSavePreset({ name: presetName.trim(), note: presetNote.trim() || undefined, config }); setPresetName(""); setPresetNote(""); setPresetDialog(false); }}><p>{configSummary(config)}</p><label><span>Preset name</span><input autoFocus required type="text" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="4B Tuesday Warm-Up" /></label><label><span>Short note <small>Optional</small></span><input type="text" value={presetNote} onChange={(event) => setPresetNote(event.target.value)} placeholder="Before the fractions lesson" /></label><footer><button className="teacher-primary-button" type="submit" disabled={!presetName.trim()}>Save preset</button><button className="teacher-text-button" type="button" onClick={() => setPresetDialog(false)}>Cancel</button></footer></form></Dialog>
       <Dialog open={linkDialog} title="Practice link" onClose={() => setLinkDialog(false)}><div className="teacher-dialog-form"><p>The link contains only the session configuration. It does not contain pupil names, evidence or notes.</p><label><span>Shareable link</span><input type="text" readOnly value={practiceLink} onFocus={(event) => event.currentTarget.select()} /></label><footer><button className="teacher-primary-button" type="button" onClick={() => { if (navigator.clipboard?.writeText) navigator.clipboard.writeText(practiceLink).catch(() => window.prompt("Copy this link", practiceLink)); else window.prompt("Copy this link", practiceLink); }}>Copy link</button><button className="teacher-text-button" type="button" onClick={() => setLinkDialog(false)}>Done</button></footer></div></Dialog>
-      <Dialog open={printDialog} title="Print practice" onClose={() => setPrintDialog(false)} className="teacher-print-dialog"><div className="teacher-print-layout"><form className="teacher-print-controls" onSubmit={(event) => { event.preventDefault(); makePrintPreview(); }}><label><span>Format</span><select value={printOptions.format} onChange={(event) => setPrintOptions((current) => ({ ...current, format: event.target.value as PrintOptions["format"] }))}><option value="a4">A4 practice page</option><option value="strip">Fluency strip</option></select></label><label><span>Questions</span><select value={printOptions.questions} onChange={(event) => setPrintOptions((current) => ({ ...current, questions: Number(event.target.value) as PrintOptions["questions"] }))}>{(printOptions.format === "strip" ? [5,10] : [5,10,15,20,30]).map((count) => <option key={count}>{count}</option>)}</select></label><label><span>Orientation</span><select value={printOptions.orientation} onChange={(event) => setPrintOptions((current) => ({ ...current, orientation: event.target.value as PrintOptions["orientation"] }))}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><label><span>Title</span><input type="text" value={printOptions.title} onChange={(event) => setPrintOptions((current) => ({ ...current, title: event.target.value }))} /></label><div className="teacher-switch-list"><label><span>Answer sheet</span><input type="checkbox" checked={printOptions.answerSheet} onChange={(event) => setPrintOptions((current) => ({ ...current, answerSheet: event.target.checked }))} /></label><label><span>Name and date line</span><input type="checkbox" checked={printOptions.nameLine} onChange={(event) => setPrintOptions((current) => ({ ...current, nameLine: event.target.checked }))} /></label><label><span>Black-and-white safe</span><input type="checkbox" checked={printOptions.blackAndWhite} onChange={(event) => setPrintOptions((current) => ({ ...current, blackAndWhite: event.target.checked }))} /></label></div><button className="teacher-primary-button" type="submit" disabled={printBusy}>{printBusy ? "Preparing…" : "Preview"}</button></form><section className={`teacher-print-preview ${printOptions.orientation} format-${printOptions.format} ${printOptions.blackAndWhite ? "is-monochrome" : "is-colour"}`} aria-label="Print preview">{printPreview ? <div className="print-sheet"><header><h1>{printPreview.title}</h1>{printOptions.nameLine && <p>Name ____________________ &nbsp; Date __________</p>}</header><ol>{printPreview.questions.map((question) => <li key={question.number}><strong><PrintMathText value={question.display} /></strong>{question.visual != null && <PrintVisualModel visual={question.visual} />}{question.support && <small><PrintMathText value={question.support} /></small>}</li>)}</ol>{printOptions.answerSheet && <section className="print-answers"><h2>Answers</h2><ol>{printPreview.questions.map((question) => <li key={question.number}><PrintMathText value={question.answer ?? "—"} /></li>)}</ol></section>}</div> : <div className="teacher-preview-empty"><span aria-hidden="true">□</span><p>Choose Preview to typeset this session for paper.</p></div>}</section></div>{printPreview && <footer className="teacher-dialog-footer"><button className="teacher-primary-button" type="button" onClick={() => window.print()}>Print</button><button className="teacher-text-button" type="button" onClick={() => setPrintDialog(false)}>Close</button></footer>}</Dialog>
+      <Dialog open={printDialog} title="Print practice" onClose={() => setPrintDialog(false)} className="teacher-print-dialog">
+        <div className="teacher-print-layout">
+          <form className="teacher-print-controls" onSubmit={(event) => { event.preventDefault(); makePrintPreview(); }}>
+            <label><span>Format</span><select value={printOptions.format} onChange={(event) => setPrintOptions((current) => ({ ...current, format: event.target.value as PrintOptions["format"] }))}><option value="a4">A4 practice page</option><option value="strip">Fluency strip</option></select></label>
+            <label><span>Questions</span><select value={printOptions.questions} onChange={(event) => setPrintOptions((current) => ({ ...current, questions: Number(event.target.value) as PrintOptions["questions"] }))}>{(printOptions.format === "strip" ? [5,10] : [5,10,15,20,30]).map((count) => <option key={count}>{count}</option>)}</select></label>
+            <label><span>Orientation</span><select value={printOptions.orientation} onChange={(event) => setPrintOptions((current) => ({ ...current, orientation: event.target.value as PrintOptions["orientation"] }))}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label>
+            <label><span>Title</span><input type="text" maxLength={80} value={printOptions.title} onChange={(event) => setPrintOptions((current) => ({ ...current, title: event.target.value }))} /></label>
+            <div className="teacher-switch-list"><label><span>Answer sheet</span><input type="checkbox" checked={printOptions.answerSheet} onChange={(event) => setPrintOptions((current) => ({ ...current, answerSheet: event.target.checked }))} /></label><label><span>Name and date line</span><input type="checkbox" checked={printOptions.nameLine} onChange={(event) => setPrintOptions((current) => ({ ...current, nameLine: event.target.checked }))} /></label><label><span>Black-and-white safe</span><input type="checkbox" checked={printOptions.blackAndWhite} onChange={(event) => setPrintOptions((current) => ({ ...current, blackAndWhite: event.target.checked }))} /></label></div>
+            <button className="teacher-primary-button" type="submit" disabled={printBusy}>{printBusy ? "Preparing…" : "Preview"}</button>
+          </form>
+          <section className={`teacher-print-preview ${printOptions.orientation} format-${printOptions.format} ${printOptions.answerSheet ? "has-answer-sheet" : "without-answer-sheet"} ${printOptions.blackAndWhite ? "is-monochrome" : "is-colour"}`} aria-label="Print preview" tabIndex={0}>
+            {printPreview ? <>
+              {(printOptions.format === "strip"
+                ? Array.from({ length: Math.ceil(printPreview.questions.length / 5) }, (_, index) => printPreview.questions.slice(index * 5, index * 5 + 5))
+                : [printPreview.questions]
+              ).map((questions, chunkIndex, chunks) => <div className="print-sheet print-sheet--questions" key={`questions-${chunkIndex}`}>
+                <header><h1>{printPreview.title}{chunks.length > 1 ? ` · ${chunkIndex + 1}/${chunks.length}` : ""}</h1>{printOptions.nameLine && <p>Name ____________________ &nbsp; Date __________</p>}</header>
+                <ol start={questions[0]?.number}>{questions.map((question) => <li key={question.number}><strong><PrintMathText value={question.display} /></strong>{question.choices?.length ? <ul className="print-choices">{question.choices.map((choice) => <li key={choice}><PrintMathText value={choice} /></li>)}</ul> : null}{question.visual != null && <PrintVisualModel visual={question.visual} />}{question.support && <small><PrintMathText value={question.support} /></small>}</li>)}</ol>
+              </div>)}
+              {printOptions.answerSheet && <section className="print-sheet print-sheet--answers"><h2>Answers</h2><ol>{printPreview.questions.map((question) => <li key={question.number}><PrintMathText value={question.answer ?? "—"} /></li>)}</ol></section>}
+            </> : <div className="teacher-preview-empty"><span aria-hidden="true">□</span><p>Choose Preview to typeset this session for paper.</p></div>}
+          </section>
+        </div>
+        {printPreview && <footer className="teacher-dialog-footer"><button className="teacher-primary-button" type="button" onClick={printDocument}>Print</button><button className="teacher-text-button" type="button" onClick={() => setPrintDialog(false)}>Close</button></footer>}
+      </Dialog>
     </div>
   );
 }
