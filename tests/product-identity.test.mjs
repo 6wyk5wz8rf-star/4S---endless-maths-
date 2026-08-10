@@ -75,3 +75,22 @@ test("teacher navigation keeps complete labels at 320 CSS pixels", async () => {
   assert.match(css, /\.teacher-topbar nav button \{[^}]*font-size: \.875rem[^}]*min-width: 0[^}]*padding-inline: 0/s);
   assert.match(css, /@media \(max-width: 480px\)[\s\S]*?\.teacher-settings-layout > nav \{[^}]*grid-template-columns: 1fr[^}]*overflow: visible/s);
 });
+
+test("the restrained visual system uses one burnt accent and honest review states", async () => {
+  const [pupilCss, teacherCss, teacher] = await Promise.all([
+    read("../app/pupil-final.css"),
+    read("../app/teacher.css"),
+    read("../app/TeacherTools.tsx"),
+  ]);
+
+  assert.match(teacherCss, /--teacher-accent:\s*#a94f23/i, "pupil and teacher surfaces must share one burnt accent");
+  assert.doesNotMatch(teacherCss, /--teacher-accent:\s*#8a4b2e/i);
+  assert.match(pupilCss, /\.setup-screen \.setup-intro h1\s*\{[^}]*font-size:\s*clamp\(2\.8rem, 4\.2vw, 3\.6rem\)/s);
+  assert.match(pupilCss, /\.summary-screen \.summary-actions \.primary-button\s*\{[^}]*background:\s*var\(--accent\)/s);
+  assert.match(teacher, /No pupil profiles yet\./);
+  assert.match(teacher, /Add pupil profiles\./);
+  assert.match(teacher, /No matching profiles\./);
+  assert.match(teacher, /No practice yet\./);
+  assert.match(teacher, /activeProfiles\.length > 0 && <button type="button" className="teacher-text-button"/);
+  assert.doesNotMatch(teacher, /aria-hidden="true">◐</);
+});
