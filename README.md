@@ -1,10 +1,10 @@
-# Year 4 Fluency
+# 4S Arithmetic
 
 [Open the currently published application](https://6wyk5wz8rf-star.github.io/4S---endless-maths-/)
 
-Year 4 Fluency is a calm, browser-based mathematical practice environment for pupils and classrooms. Challenge controls the mathematics. Support independently controls how much mathematical structure is exposed.
+4S Arithmetic is a calm, browser-based arithmetic practice environment for Year 4 pupils and classrooms. Challenge controls the mathematics. Help independently controls how much mathematical structure is exposed.
 
-The pupil surface remains deliberately small: choose Challenge, choose Support, then Begin. Build 3 adds a separate teacher layer for launching, targeting, reviewing, sharing and printing practice without placing classroom administration in front of pupils.
+The pupil surface remains deliberately small: choose Challenge, choose Help, then Start. A separate teacher layer launches, targets, reviews, shares and prints practice without placing classroom administration in front of pupils.
 
 ## Product structure
 
@@ -12,20 +12,20 @@ The pupil surface remains deliberately small: choose Challenge, choose Support, 
 
 - 95 procedural generator families and more than 300 mathematical structures
 - a continuous foundation-to-deep-Year-4 challenge model
-- independent, requested, adaptive, guided and modelled support
+- independent, requested, adaptive, guided and modelled help
 - Mix, Focus, Quick Fire, Think and My Mix modes
 - connected facts, equivalence, derived facts, retrieval spacing and interleaving
 - generated number lines, arrays, groups, place-value, fraction and decimal models
-- calm retry behaviour, mathematical hints and model-to-near-transfer sequences
+- calm retry behaviour, mathematical hints and example-to-near-transfer sequences
 - large touch number pad, keyboard entry, optional jotting and quiet session summaries
 
 ### Classroom tools
 
 - six restrained starting presets and recent/saved sessions
-- a custom session builder with fixed or ranged challenge, support, mode, length and pupil-control permissions
+- a custom session builder with fixed or ranged challenge, help, mode, length and pupil-control permissions
 - optional device-local pupil profiles and lightweight groups; Guest remains available
-- smartboard questions with staged Hint, Model, Another way, Related question and Reveal controls
-- printable A4 practice pages, fluency strips and aligned answer sheets
+- smartboard questions with staged Hint, Picture, Steps, Worked example, Another way, Related question and Reveal controls
+- printable A4 practice pages, practice strips and aligned answer sheets
 - reproducible practice links that encode settings and seed, never pupil data
 - exact local session resume, including seeded RNG, scheduled retrieval, support and adaptation state
 - local evidence separated into accuracy, independence, stability, retrieval and transfer
@@ -53,7 +53,7 @@ npm run audit:release
 npm run check
 ```
 
-`npm run audit:release` generates 21,000 digital questions across 21 challenge points and all five modes. It also audits support ladders, challenge ranges, print packs, evidence retention and a 500-question long session.
+`npm run audit:release` generates 21,000 digital questions across 21 challenge points and all five modes. It also audits help ladders, challenge ranges, print packs, evidence retention and a 500-question long session.
 
 ## Architecture
 
@@ -68,11 +68,11 @@ npm run check
 
 Question generation, representation, scaffold, evaluation and feedback remain separate. A generated item carries its family, strand, subskill, difficulty, answer rules, representations, scaffold ladder, relationships and misconception metadata rather than placing mathematical behaviour in UI components.
 
-## Challenge and Support
+## Challenge and Help
 
 Challenge is a continuous `0–100` mathematical demand value. Magnitude is only one factor: generators also account for boundary crossing, operation structure, missing information, inverses, abstraction, strategy visibility, working-memory demand, equivalence and transfer. Teacher sessions may use a fixed point or an authoritative range; adaptation never moves outside that range.
 
-Support is separate. It progresses from independent practice through prompts, representations, guided steps and worked models. Repeated success can fade suggested support. Repeated difficulty can make the next useful scaffold more available without lowering Challenge.
+Help is separate. It progresses from independent practice through a hint, picture, steps and worked example. Repeated success can fade suggested help. Repeated difficulty can make the next useful scaffold more available without lowering Challenge.
 
 ## Local data, privacy and retention
 
@@ -110,4 +110,4 @@ The service worker does not interrupt an active session. When a newer cached bui
 
 ## Release verification
 
-Automated release checks cover TypeScript, 70 unit/integration tests, a production build, the mathematical continuum, 21,000 Build 3 samples, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.
+Automated release checks cover TypeScript, 110 unit/integration tests, a production build, the mathematical continuum, 21,000 generated questions, seeded print packs, evidence import/deduplication, storage migration, exact session snapshots and long-session generation. Physical iPad, printer, VoiceOver and production GitHub Pages checks must be recorded separately when they are actually performed; the repository does not claim those checks from automated tests alone.

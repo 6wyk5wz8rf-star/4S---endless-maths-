@@ -37,6 +37,7 @@ import {
 } from "@/lib/classroom-mastery.mjs";
 import { createPrintPractice, createPrintPreview, normalisePrintMathText } from "@/lib/classroom-print.mjs";
 import { corruptRecordKey, readStoredJson, removeStoredKeys, resolveStorage, writeStoredJson } from "@/lib/local-persistence.mjs";
+import { numberLineLabelPlan } from "@/lib/visual-presentation.mjs";
 import TeacherTools, { DEFAULT_TEACHER_CONFIG } from "./TeacherTools";
 import type {
   AccessibilitySettings,
@@ -205,7 +206,7 @@ const HISTORY_KEY = "year4-fluency-generator-history-v2";
 const LEARNING_KEY = "year4-fluency-learning-v2";
 const CLASSROOM_KEY = "year4-fluency-classroom-v3";
 const ACTIVE_SESSION_KEY = "year4-fluency-active-session-v3";
-const APP_VERSION = "Build 3";
+const APP_VERSION = "Build 4";
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 const STORAGE_WARNING = "This browser cannot save changes right now. Practice can continue, but closing or reloading may lose this session.";
 const CORRUPT_STORAGE_WARNING = "Some saved data was damaged and could not be restored. An exact local recovery copy was preserved, and this screen opened with safe defaults.";
@@ -219,7 +220,7 @@ function withRecoveryRecords(keys: string[]) {
 }
 
 const MODES: Array<{ id: PracticeMode; label: string; note: string }> = [
-  { id: "mix", label: "Mix", note: "Connected mixed fluency" },
+  { id: "mix", label: "Mix", note: "Mixed arithmetic" },
   { id: "focus", label: "Focus", note: "One broad strand" },
   { id: "quick", label: "Quick Fire", note: "Short retrieval" },
   { id: "think", label: "Think", note: "Fewer, deeper prompts" },
@@ -408,9 +409,9 @@ function formatDuration(seconds: number) {
   return `${minutes} min`;
 }
 
-function sessionProgressText(attempted: number, session: ActiveSession | null) {
-  if (session?.length.kind === "questions") return `${attempted} of ${session.length.value}`;
-  return `${attempted} ${attempted === 1 ? "question" : "questions"}`;
+function sessionProgressText(position: number, session: ActiveSession | null) {
+  if (session?.length.kind === "questions") return `Question ${Math.min(position, session.length.value)} of ${session.length.value}`;
+  return `Question ${Math.max(1, position)}`;
 }
 
 function sameIds(first: string[], second: string[]) {
@@ -480,6 +481,7 @@ function accessibleMath(value: string) {
 function questionMathScale(value: string) {
   const display = String(value ?? "").trim();
   if (/[A-Za-z]{3}/.test(display)) return "question-math--prose";
+  if ((display.match(/,\s+/g)?.length ?? 0) >= 2) return "question-math--long";
   if (display.length > 26) return "question-math--long";
   if (display.length > 16) return "question-math--medium";
   return "question-math--short";
@@ -631,7 +633,7 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
     const rows = Array.isArray(visual.rows) ? visual.rows as number[][] : [];
     return (
       <div className="visual-model place-grid" role="img" aria-label={`${accessibleMath(visual.title)}. Place-value rows: ${rows.map((row, index) => `${index > 0 && visual.operator ? `${visual.operator} ` : ""}${row.join("")}`).join("; ")}. Columns are thousands, hundreds, tens and ones.`}>
-        <div className="place-grid__head"><span>Th</span><span>H</span><span>T</span><span>O</span></div>
+        <div className="place-grid__head"><span>1,000s</span><span>100s</span><span>10s</span><span>1s</span></div>
         {rows.map((row: number[], rowIndex: number) => (
           <div className="place-grid__row" key={rowIndex}>
             {rowIndex > 0 && <b>{visual.operator ?? ""}</b>}
@@ -645,10 +647,10 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
   if (visual.kind === "base-ten") {
     const value = Math.max(0, Math.round(visual.value ?? 0));
     const places = [
-      { label: "Th", value: Math.floor(value / 1000) },
-      { label: "H", value: Math.floor(value / 100) % 10 },
-      { label: "T", value: Math.floor(value / 10) % 10 },
-      { label: "O", value: value % 10 },
+      { label: "1,000s", value: Math.floor(value / 1000) },
+      { label: "100s", value: Math.floor(value / 100) % 10 },
+      { label: "10s", value: Math.floor(value / 10) % 10 },
+      { label: "1s", value: value % 10 },
     ];
     return (
       <div className="visual-model base-ten" role="img" aria-label={`${visual.title}: ${format(value)}`}>
@@ -765,23 +767,26 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
     const min = visual.min ?? 0;
     const max = visual.max ?? min + 1;
     const markers = visual.markers ?? visual.points ?? [];
-    const span = Math.max(0.0001, max - min);
+    const labelPlan = numberLineLabelPlan({ min, max, markers, unknown: visual.unknown });
+    const { unknownAtMin, unknownAtMax } = labelPlan;
     const divisions = visual.ticks ? ` with ${visual.ticks} marked divisions` : "";
     const markerDescription = markers.length
       ? markers.map((marker, index) => visual.unknown === index ? `marker ${index + 1} is the missing value` : `marker ${index + 1} is at ${format(marker)}`).join("; ")
       : "no extra markers";
     return (
-      <div className={`visual-model number-line ${visual.kind === "bead-string" ? "bead-string" : ""}`} role="img" aria-label={`${accessibleMath(visual.title)}. From ${format(min)} to ${format(max)}${divisions}; ${markerDescription}.`}>
+      <div className={`visual-model number-line ${visual.kind === "bead-string" ? "bead-string" : ""}`} role="img" aria-label={`${accessibleMath(visual.title)}. From ${unknownAtMin ? "a missing start value" : format(min)} to ${unknownAtMax ? "a missing end value" : format(max)}${divisions}; ${markerDescription}.`}>
         <div className="number-line__track">
           <i aria-hidden="true" />
-          {markers.map((marker, index) => (
-            <span className="number-line__marker" style={{ left: `${Math.max(0, Math.min(100, ((marker - min) / span) * 100))}%` }} key={`${marker}-${index}`}>
-              <b aria-hidden="true" />
-              <small><MathText value={visual.unknown === index ? "□" : format(marker)} /></small>
-            </span>
-          ))}
+          {labelPlan.markers.map((marker, index) => {
+            return (
+              <span className={`number-line__marker ${marker.isEndpoint ? "is-endpoint" : ""} ${marker.isUnknown ? "is-unknown" : ""}`.trim()} style={{ left: `${marker.position}%` }} key={`${marker.value}-${index}`}>
+                <b aria-hidden="true" />
+                {marker.showLabel && <small><MathText value={marker.isUnknown ? "□" : format(marker.value)} /></small>}
+              </span>
+            );
+          })}
         </div>
-        <div className="number-line__ends"><span>{format(min)}</span><span>{format(max)}</span></div>
+        <div className="number-line__ends"><span>{unknownAtMin ? "□" : format(min)}</span><span>{unknownAtMax ? "□" : format(max)}</span></div>
       </div>
     );
   }
@@ -824,8 +829,8 @@ function nextScaffoldStage(item: QuestionItem | null, stage: number) {
 
 function scaffoldActionLabel(item: QuestionItem | null, stage: number) {
   const visible = visibleScaffoldStage(item, stage);
-  if (visible >= 4) return "Model shown";
-  return ({ 1: "Hint", 2: "Show it", 3: "Steps", 4: "Model" } as const)[nextScaffoldStage(item, stage) as 1 | 2 | 3 | 4];
+  if (visible >= 4) return "Example shown";
+  return ({ 1: "Hint", 2: "Picture", 3: "Steps", 4: "Worked example" } as const)[nextScaffoldStage(item, stage) as 1 | 2 | 3 | 4];
 }
 
 function shouldShowQuestionDisplay(item: QuestionItem) {
@@ -841,7 +846,7 @@ function ScaffoldPanel({ item, stage, onHide }: { item: QuestionItem; stage: num
   const visibleStage = visibleScaffoldStage(item, stage);
   if (visibleStage <= 0 || !item) return null;
   const scaffold = item.scaffold;
-  const heading = ({ 1: "Hint", 2: "See it", 3: "Steps", 4: "Model" } as const)[visibleStage as 1 | 2 | 3 | 4];
+  const heading = ({ 1: "Hint", 2: "Picture", 3: "Steps", 4: "Worked example" } as const)[visibleStage as 1 | 2 | 3 | 4];
   return (
     <aside className={`scaffold scaffold--stage-${visibleStage}`} aria-live="polite">
       {visibleStage === 1 && (
@@ -871,7 +876,6 @@ function ScaffoldPanel({ item, stage, onHide }: { item: QuestionItem; stage: num
           <strong><MathText value={scaffold.model.display} /></strong>
           {scaffold.model.lines.map((line: string, index: number) => <p key={index}><MathText value={line} /></p>)}
           <b>= <MathText value={scaffold.model.answer} /></b>
-          <small>Now try the question.</small>
         </div>
       )}
     </aside>
@@ -1121,11 +1125,11 @@ function SettingsPanel({
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section ref={dialogRef} className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
         <div className="sheet-heading">
-          <div><span>Preferences</span><h2 id="settings-title">Make Fluency comfortable</h2></div>
+          <div><span>Preferences</span><h2 id="settings-title">Display and access</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" autoFocus>×</button>
         </div>
         <label className="setting-row">
-          <span><b>Larger mathematics</b><small>Increase question text and numerals</small></span>
+          <span><b>Larger maths</b><small>Increase question text and numerals</small></span>
           <input type="checkbox" checked={preferences.largerText} onChange={(event) => setPreferences({ ...preferences, largerText: event.target.checked })} />
         </label>
         <label className="setting-row">
@@ -1137,14 +1141,14 @@ function SettingsPanel({
           <input type="checkbox" checked={preferences.reducedMotion} onChange={(event) => setPreferences({ ...preferences, reducedMotion: event.target.checked })} />
         </label>
         <label className="setting-row">
-          <span><b>Larger touch controls</b><small>Give buttons and number keys more space</small></span>
+          <span><b>Larger buttons</b><small>Give buttons and number keys more space</small></span>
           <input type="checkbox" checked={preferences.largerTargets} onChange={(event) => setPreferences({ ...preferences, largerTargets: event.target.checked })} />
         </label>
         <label className="setting-row">
-          <span><b>Simpler screen</b><small>Hide non-essential session detail</small></span>
+          <span><b>Fewer details</b><small>Hide non-essential session detail</small></span>
           <input type="checkbox" checked={preferences.simplifiedDensity} onChange={(event) => setPreferences({ ...preferences, simplifiedDensity: event.target.checked })} />
         </label>
-        <button type="button" className="text-button text-button--danger" onClick={onReset}>Reset pupil preferences and practice memory</button>
+        <button type="button" className="text-button text-button--danger" onClick={onReset}>Reset pupil settings</button>
       </section>
     </div>
   );
@@ -1196,7 +1200,7 @@ function BoardHelpDialog({ onClose }: { onClose: () => void }) {
           <div><dt>Space</dt><dd>Reveal next stage</dd></div>
           <div><dt>N</dt><dd>Next question</dd></div>
           <div><dt>H</dt><dd>Hint</dd></div>
-          <div><dt>M</dt><dd>Model</dd></div>
+          <div><dt>M</dt><dd>Worked example</dd></div>
           <div><dt>A</dt><dd>Another way</dd></div>
           <div><dt>J</dt><dd>Jot</dd></div>
           <div><dt>F</dt><dd>Full screen</dd></div>
@@ -1222,7 +1226,6 @@ export default function FluencyApp() {
   const [feedbackText, setFeedbackText] = useState("");
   const [attempts, setAttempts] = useState(0);
   const [scaffoldStage, setScaffoldStage] = useState(0);
-  const [scaffoldScrollRequest, setScaffoldScrollRequest] = useState(0);
   const [controlOpen, setControlOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [jotOpen, setJotOpen] = useState(false);
@@ -1330,18 +1333,6 @@ export default function FluencyApp() {
     window.addEventListener("keydown", leaveFallbackFullscreen);
     return () => window.removeEventListener("keydown", leaveFallbackFullscreen);
   }, [boardMode, fallbackFullscreen]);
-
-  useEffect(() => {
-    if (scaffoldScrollRequest === 0) return;
-    if (screen !== "practice" || boardMode || scaffoldStage <= 0) return;
-    const frame = window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(".question-panel > .scaffold")?.scrollIntoView({
-        behavior: preferences.reducedMotion ? "auto" : "smooth",
-        block: "nearest",
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [boardMode, preferences.reducedMotion, scaffoldScrollRequest, scaffoldStage, screen]);
 
   useEffect(() => {
     let saved: { challenge?: number; support?: number; mode?: PracticeMode; focus?: string | null; preferences?: Preferences } | null = null;
@@ -1621,7 +1612,7 @@ export default function FluencyApp() {
     const session: ActiveSession = {
       id: localId("session"),
       seed: sessionSeed,
-      title: configured ? configured.focus : presetKey ? PRESETS[presetKey].label : "Mixed Fluency",
+      title: configured ? configured.focus : presetKey ? PRESETS[presetKey].label : "Mixed arithmetic",
       config: configured ?? null,
       profileIds: selectedProfiles,
       startedAt,
@@ -1928,8 +1919,7 @@ export default function FluencyApp() {
     }
 
     setFeedback("supported");
-    setFeedbackText("Let’s make the structure visible");
-    setScaffoldScrollRequest((current) => current + 1);
+    setFeedbackText("Here’s a picture to help.");
     setScaffoldStage((current) => Math.min(4, Math.max(nextScaffoldStage(question, current), 2)));
     setAnswer("");
     setSelectedChoice("");
@@ -2014,7 +2004,6 @@ export default function FluencyApp() {
     setSupport(value);
     setEffectiveSupport(value);
     effectiveSupportRef.current = value;
-    setScaffoldScrollRequest((current) => current + 1);
     setScaffoldStage(initialStage(value, question, activeSession?.config));
   };
 
@@ -2073,7 +2062,6 @@ export default function FluencyApp() {
   };
 
   const revealHint = () => {
-    setScaffoldScrollRequest((current) => current + 1);
     setScaffoldStage((stage) => nextScaffoldStage(question, stage));
   };
 
@@ -2155,6 +2143,7 @@ export default function FluencyApp() {
   const toggleBoardMode = async () => {
     const nextBoardMode = !boardMode;
     setBoardMode(nextBoardMode);
+    if (nextBoardMode) setControlOpen(false);
     setBoardAnswerVisible(false);
     setBoardMoreOpen(false);
     if (nextBoardMode) await enterFullscreen();
@@ -2423,8 +2412,8 @@ export default function FluencyApp() {
 
   const exportEvidence = (format: "csv" | "json") => {
     const stamp = new Date().toISOString().slice(0, 10);
-    if (format === "csv") downloadLocalFile(`year-4-fluency-evidence-${stamp}.csv`, "text/csv;charset=utf-8", createCsvSummary(classroomState));
-    else downloadLocalFile(`year-4-fluency-evidence-${stamp}.json`, "application/json", JSON.stringify(createEvidenceExport(classroomState, { applicationVersion: APP_VERSION }), null, 2));
+    if (format === "csv") downloadLocalFile(`4s-arithmetic-evidence-${stamp}.csv`, "text/csv;charset=utf-8", createCsvSummary(classroomState));
+    else downloadLocalFile(`4s-arithmetic-evidence-${stamp}.json`, "application/json", JSON.stringify(createEvidenceExport(classroomState, { applicationVersion: APP_VERSION }), null, 2));
   };
 
   const exportBackup = () => {
@@ -2459,7 +2448,7 @@ export default function FluencyApp() {
       activeSession: currentSession,
       lastSession: readLocalJson<any>(SESSION_KEY, null),
     };
-    downloadLocalFile(`year-4-fluency-backup-${stamp}.json`, "application/json", JSON.stringify(createClassroomBackup(classroomState, { applicationVersion: APP_VERSION, applicationData }), null, 2));
+    downloadLocalFile(`4s-arithmetic-backup-${stamp}.json`, "application/json", JSON.stringify(createClassroomBackup(classroomState, { applicationVersion: APP_VERSION, applicationData }), null, 2));
   };
 
   const importEvidence = async (file: File) => {
@@ -2705,7 +2694,9 @@ export default function FluencyApp() {
     : currentScaffoldStage >= 4
       ? "Reveal answer"
       : `Reveal ${scaffoldActionLabel(question, scaffoldStage).toLowerCase()}`;
-  const practiceQuestionCount = boardMode ? stats.classQuestions : stats.attempted;
+  const practiceQuestionCount = boardMode
+    ? Math.max(1, stats.classQuestions)
+    : stats.attempted + (questionAttemptedRef.current ? 0 : 1);
   const timedLengthMinutes = activeSession?.length.kind === "minutes" ? activeSession.length.value : null;
   const sessionPrimaryText = timedLengthMinutes ? `${timedLengthMinutes}-minute practice` : sessionProgressText(practiceQuestionCount, activeSession);
   const sessionSecondaryText = timedLengthMinutes
@@ -2795,15 +2786,15 @@ export default function FluencyApp() {
 
       {screen === "share" && sharedSession && (
         <main className="share-screen" id="main-content" tabIndex={-1}>
-          <header className="setup-header"><div className="wordmark"><i aria-hidden="true" />Fluency</div></header>
-          <section className="share-summary"><p>Shared practice</p><h1>Ready when you are.</h1><strong>{sharedSession.summary}</strong><button type="button" className="primary-button" onClick={() => begin(undefined, sharedSession.config, [])}>Begin</button><button type="button" className="text-button" onClick={() => { window.history.replaceState(null, "", window.location.pathname); setSharedSession(null); setScreen("setup"); }}>Change the settings</button></section>
+          <header className="setup-header"><div className="wordmark"><i aria-hidden="true" />4S Arithmetic</div></header>
+          <section className="share-summary"><p>Shared practice</p><h1>Ready when you are.</h1><strong>{sharedSession.summary}</strong><button type="button" className="primary-button" onClick={() => begin(undefined, sharedSession.config, [])}>Start</button><button type="button" className="text-button" onClick={() => { window.history.replaceState(null, "", window.location.pathname); setSharedSession(null); setScreen("setup"); }}>Change the settings</button></section>
         </main>
       )}
 
       {screen === "setup" && (
         <main className="setup-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
-            <div className="wordmark"><i aria-hidden="true" />Year 4</div>
+            <div className="wordmark"><i aria-hidden="true" />4S Arithmetic</div>
             <div className="setup-header-actions">
               {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" aria-label={`Choose pupil profile. Current profile: ${activeProfile?.displayName ?? "Guest"}`} onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
@@ -2812,28 +2803,27 @@ export default function FluencyApp() {
           </header>
 
           <div className="setup-intro">
-            <p>Mathematics practice</p>
-            <h1>Fluency</h1>
-            <span className="setup-intro-copy">Choose the challenge and the support. Then begin.</span>
+            <p>Year 4 practice</p>
+            <h1>Choose your practice.</h1>
+            <span className="setup-intro-copy">Choose the challenge and help.</span>
           </div>
 
           {visibleResumeSnapshot && (
             <div className="setup-resume-choice">
               <button type="button" className="primary-button resume-primary" onClick={resumePractice}>
                 <span>{resumeLabel}</span>
-                <small>{visibleResumeSnapshot.stats?.attempted ?? 0} questions explored</small>
+                <small>{visibleResumeSnapshot.stats?.attempted ?? 0} questions tried</small>
               </button>
-              <span>Or set up a new practice below.</span>
             </div>
           )}
 
           <div className="setup-controls" role="group" aria-label="Practice settings">
             <AxisControl id="challenge" label="Challenge" description="How tricky should the maths be?" value={challenge} setValue={changeSetupChallenge} anchors={CHALLENGE_ANCHORS} />
-            <AxisControl id="support" label="Support" description="How much help should be available?" value={support} setValue={setSupport} anchors={SUPPORT_ANCHORS} />
+            <AxisControl id="support" label="Help" description="How much help?" value={support} setValue={setSupport} anchors={SUPPORT_ANCHORS} />
           </div>
 
           <div className="setup-actions">
-            <button type="button" className="primary-button" onClick={() => begin()}>{visibleResumeSnapshot ? "Begin new practice" : "Begin"}</button>
+            <button type="button" className="primary-button" onClick={() => begin()}>{visibleResumeSnapshot ? "Start new practice" : "Start"}</button>
             <div className={`setup-options ${modeOpen ? "is-open" : ""}`}>
               <ModeSelector
                 mode={mode}
@@ -2847,7 +2837,7 @@ export default function FluencyApp() {
               />
               {modeOpen && (
                 <div className="quick-starts">
-                  <span>Or begin with a ready-made practice</span>
+                  <span>Quick starts</span>
                   <div className="presets" role="group" aria-label="Ready-made practice">
                     {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
                       <button type="button" onClick={() => begin(key)} key={key}>
@@ -2862,7 +2852,7 @@ export default function FluencyApp() {
           </div>
 
           <footer className="setup-footer">
-            <span>Quiet practice. No scores or timer pressure.</span>
+            <span>No timer. No scores.</span>
             <button type="button" className="teacher-entry" onClick={openTeacherTools}>Teacher tools</button>
           </footer>
         </main>
@@ -2877,7 +2867,7 @@ export default function FluencyApp() {
               {sessionSecondaryText && <><i /><span>{sessionSecondaryText}</span></>}
             </div>
             <div className="practice-tools">
-              {boardMode && <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed="true">Exit teacher view</button>}
+              {boardMode && <button type="button" className="board-button" onClick={toggleBoardMode} aria-pressed="true">Exit class view</button>}
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
@@ -2885,20 +2875,20 @@ export default function FluencyApp() {
 
           <div className={`control-drawer ${controlOpen ? "is-open" : ""} ${controlsLocked ? "is-locked" : ""}`}>
             <button type="button" className="control-drawer__tab" onClick={() => setControlOpen((open) => !open)} aria-expanded={controlOpen}>
-              <span>Practice settings</span><i aria-hidden="true">{controlOpen ? "−" : "+"}</i>
+              <span>Adjust practice</span><i aria-hidden="true">{controlOpen ? "−" : "+"}</i>
             </button>
             {controlOpen && (
               <div className="control-drawer__body">
-                {controlsLocked && <p className="control-drawer__notice">Challenge and support are set by the teacher for this session.</p>}
+                {controlsLocked && <p className="control-drawer__notice">Challenge and help are set by the teacher for this session.</p>}
                 {challengePermission !== "locked" && <AxisControl compact id="practice-challenge" label="Challenge" value={challenge} setValue={changeChallenge} anchors={CHALLENGE_ANCHORS} min={practiceChallengeMin} max={practiceChallengeMax} />}
-                {supportPermission !== "locked" && <AxisControl compact id="practice-support" label="Support" value={support} setValue={changeSupport} anchors={SUPPORT_ANCHORS} min={practiceSupportMin} max={practiceSupportMax} />}
+                {supportPermission !== "locked" && <AxisControl compact id="practice-support" label="Help" value={support} setValue={changeSupport} anchors={SUPPORT_ANCHORS} min={practiceSupportMin} max={practiceSupportMax} />}
                 {(modePermission !== "locked" || focusPermission !== "locked") && (
                   <div className="control-drawer__selects">
                     {modePermission !== "locked" && <label><span>Mode</span><select value={mode} onChange={(event) => changePracticeMode(event.target.value as PracticeMode)}>{MODES.filter((item) => item.id !== "my-mix" || myMixAvailable).map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>}
                     {focusPermission !== "locked" && <label><span>Focus</span><select value={focus ?? "mixed"} onChange={(event) => changePracticeFocus(event.target.value)}><option value="mixed">Mixed</option>{[...FOCUS_OPTIONS, "Equivalence and Missing Numbers"].map((item) => <option value={item.toLowerCase()} key={item}>{item}</option>)}</select></label>}
                   </div>
                 )}
-                {!boardMode && <div className="practice-teacher-option"><div><strong>Teacher-led view</strong><span>Show one question to the whole class.</span></div><button type="button" onClick={toggleBoardMode}>Open teacher view</button></div>}
+                {!boardMode && <div className="practice-teacher-option"><div><strong>Class view</strong><span>Show one question to the whole class.</span></div><button type="button" onClick={toggleBoardMode}>Open class view</button></div>}
               </div>
             )}
           </div>
@@ -2910,37 +2900,59 @@ export default function FluencyApp() {
               tabIndex={-1}
             >
               <h1 className="pupil-sr-only" id="question-heading">{questionAnnouncement}</h1>
-              {boardMode && (
-                <div className="question-context">
-                  <span>{question.strand}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{challengeLabel(question.difficulty)}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{MODES.find((item) => item.id === mode)?.label ?? "Mix"}</span>
-                </div>
-              )}
-              {boardMode && boardInvitation && <div className="board-invitation" role="status">{boardInvitation}</div>}
-              {question.instruction && <p id="question-instruction" className="question-instruction"><MathText value={question.instruction} /></p>}
-              {shouldShowQuestionDisplay(question) && (
-                <div className={`question-math ${questionMathScale(question.display)}`} role="img" aria-label={`${accessibleMath(question.instruction ?? "Calculate")}: ${accessibleMath(question.display)}`}>
-                  <MathText value={question.display} />
-                </div>
-              )}
+              <div className="question-content">
+                {boardMode && (
+                  <div className="question-context">
+                    <span>{question.strand}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{challengeLabel(question.difficulty)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{MODES.find((item) => item.id === mode)?.label ?? "Mix"}</span>
+                  </div>
+                )}
+                {boardMode && boardInvitation && <div className="board-invitation" role="status">{boardInvitation}</div>}
+                {question.instruction && <p id="question-instruction" className="question-instruction"><MathText value={question.instruction} /></p>}
+                {shouldShowQuestionDisplay(question) && (
+                  <div className={`question-math ${questionMathScale(question.display)}`} role="img" aria-label={`${accessibleMath(question.instruction ?? "Calculate")}: ${accessibleMath(question.display)}`}>
+                    <MathText value={question.display} />
+                  </div>
+                )}
 
-              {question.promptVisual && <div className="prompt-visual"><VisualScaffold visual={question.promptVisual} /></div>}
+                {question.promptVisual && <div className="prompt-visual"><VisualScaffold visual={question.promptVisual} /></div>}
 
-              <ScaffoldPanel item={question} stage={scaffoldStage} onHide={!boardMode ? () => setScaffoldStage(0) : undefined} />
+                {boardMode && question.type === "choice" && (
+                  <div className="board-choice-grid" role="list" aria-label="Answer choices">
+                    {(question.choices ?? []).map((choice: string, index: number) => {
+                      const isRevealedAnswer = boardAnswerVisible && evaluateAnswer(question, choice).correct;
+                      return (
+                        <div
+                          className={isRevealedAnswer ? "board-choice is-answer" : "board-choice"}
+                          role="listitem"
+                          key={choice}
+                        >
+                          <span aria-hidden="true">{index + 1}</span>
+                          <span className="pupil-sr-only">Choice {index + 1}: </span>
+                          <strong><MathText value={choice} /></strong>
+                          {isRevealedAnswer && <span className="pupil-sr-only">, correct answer</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {anotherWayOpen && question.scaffold.alternatives.length > 0 && (
-                <div className="another-way" aria-live="polite">
-                  <span>Another way</span>
-                  {question.scaffold.alternatives.slice(0, 2).map((alternative) => <p key={alternative}><MathText value={alternative} /></p>)}
-                </div>
-              )}
+                <ScaffoldPanel item={question} stage={scaffoldStage} onHide={!boardMode ? () => setScaffoldStage(0) : undefined} />
 
-              {boardMode && boardAnswerVisible && (
-                <div className="board-answer" role="status"><span>Answer</span><strong><MathText value={question.answer} /></strong></div>
-              )}
+                {anotherWayOpen && question.scaffold.alternatives.length > 0 && (
+                  <div className="another-way" aria-live="polite">
+                    <span>Another way</span>
+                    {question.scaffold.alternatives.slice(0, 2).map((alternative) => <p key={alternative}><MathText value={alternative} /></p>)}
+                  </div>
+                )}
+
+                {boardMode && boardAnswerVisible && (
+                  <div className="board-answer" role="status"><span>Answer</span><strong><MathText value={question.answer} /></strong></div>
+                )}
+              </div>
 
               {!boardMode && question.type !== "choice" && (
                 <div className="response-dock">
@@ -2978,7 +2990,7 @@ export default function FluencyApp() {
               )}
 
               {!boardMode && question.type === "choice" && (
-                <>
+                <div className="response-dock response-dock--choice">
                   <div className="choice-grid" role="group" aria-label="Choose an answer">
                     {(question.choices ?? []).map((choice: string) => (
                       <button
@@ -3007,13 +3019,13 @@ export default function FluencyApp() {
                       <button type="button" onClick={() => setAnotherWayOpen((open) => !open)}>{anotherWayOpen ? "Hide other way" : "Another way"}</button>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
               {boardMode ? (
                 <div className="board-controls">
                   <button type="button" onClick={revealBoardStage} disabled={boardAnswerVisible}>{boardRevealLabel}</button>
-                  <button type="button" onClick={() => setScaffoldStage(4)} disabled={currentScaffoldStage >= 4}>{currentScaffoldStage >= 4 ? "Model shown" : "Model"}</button>
+                  <button type="button" onClick={() => setScaffoldStage(4)} disabled={currentScaffoldStage >= 4}>{currentScaffoldStage >= 4 ? "Example shown" : "Worked example"}</button>
                   <details className="board-more" open={boardMoreOpen} onToggle={(event) => setBoardMoreOpen(event.currentTarget.open)}>
                     <summary ref={boardMoreSummaryRef}>More</summary>
                     <div className="board-more__panel">
@@ -3036,7 +3048,7 @@ export default function FluencyApp() {
       {screen === "summary" && (
         <main className="summary-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
-            <div className="wordmark"><i aria-hidden="true" />Fluency</div>
+            <div className="wordmark"><i aria-hidden="true" />4S Arithmetic</div>
           </header>
           <div className="summary-copy">
             <p>{classOnlySummary ? "Class practice" : "Practice"}</p>
@@ -3047,18 +3059,18 @@ export default function FluencyApp() {
               <div className="summary-numbers__class"><strong>{stats.classQuestions}</strong><span>questions shown</span></div>
             ) : (
               <>
-                <div><strong>{stats.attempted}</strong><span>questions explored</span></div>
-                <div><strong>{stats.firstTry}</strong><span>first try independently</span></div>
+                <div><strong>{stats.attempted}</strong><span>questions tried</span></div>
+                <div><strong>{stats.firstTry}</strong><span>first try</span></div>
                 <div><strong>{stats.afterAnotherTry}</strong><span>after another try</span></div>
-                <div><strong>{stats.afterSupport}</strong><span>with a hint or steps</span></div>
-                <div><strong>{stats.modelled}</strong><span>after a worked model</span></div>
+                <div><strong>{stats.afterSupport}</strong><span>with help</span></div>
+                <div><strong>{stats.modelled}</strong><span>after an example</span></div>
                 {mixedClassAndPupilSummary && <div><strong>{stats.classQuestions}</strong><span>shown in class view</span></div>}
               </>
             )}
           </div>
           {!classOnlySummary && strandSummary && <div className="summary-notes">
             <div><span>Strong today</span><b>{strandSummary.strongest}</b></div>
-            <div><span>Bring back soon</span><b>{strandSummary.practise}</b></div>
+            <div><span>Practise next</span><b>{strandSummary.practise}</b></div>
           </div>}
           <div className="summary-actions">
             <button

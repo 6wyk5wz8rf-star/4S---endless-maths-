@@ -6,7 +6,7 @@ import "../app/pupil-final.css";
 
 const root = document.getElementById("root");
 
-if (!root) throw new Error("Fluency could not find its application root.");
+if (!root) throw new Error("4S Arithmetic could not start.");
 
 createRoot(root).render(
   <React.StrictMode>

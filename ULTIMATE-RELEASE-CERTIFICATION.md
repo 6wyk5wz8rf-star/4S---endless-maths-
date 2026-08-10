@@ -1,37 +1,36 @@
-# Year 4 Fluency ultimate release certification
+# 4S Arithmetic ultimate release certification
 
-This document is the functionality ledger, issue register and final evidence record for the release candidate derived from `fix/pupil-clarity-math-integrity`.
+This document is the functionality ledger, issue register and evidence record for the reimagined `4S Arithmetic` release candidate built from the current remote default branch.
 
 ## Source-of-truth baseline
 
 - Repository: `6wyk5wz8rf-star/4S---endless-maths-`
 - Remote default branch: `main`
-- Default-branch baseline: `91b4100b47c32016d2599dd2f1c1d1d9d48b0331`
-- Candidate baseline: `b92d1fd4f7e477e2f27ab7a16f86c4fe517897bf`
-- Candidate tree: `43d0378d7fcf3824904c5c849245de65594b5521`
+- Default-branch baseline: `92161581c5957293d65e7682bad4a83a364797d3`
+- Candidate branch: `release/4s-arithmetic-reimagined`
+- Candidate commit/tree: assigned after the exact certified tree is committed
 - Live application: `https://6wyk5wz8rf-star.github.io/4S---endless-maths-/`
 - Active Pages deployment source observed at baseline: repository root on `release/build-3-rams-final`
-- Active Pages source commit: `91b4100b47c32016d2599dd2f1c1d1d9d48b0331`
-- Live-baseline verification: the public application byte-matched `91b4100b47c32016d2599dd2f1c1d1d9d48b0331`; although that commit is also contained by `main`, the configured Pages deployment ref was `release/build-3-rams-final`, not `main`
-- Stale deployment reference observed: `build-1-infinite-practice` at `35505f0c0e0e813199528ae6238e4054c8f22b2b` existed three commits behind `main`, but it was not the tree served by the live URL and is not used as the deployed baseline in this audit
+- Active Pages source commit observed at candidate start: `92161581c5957293d65e7682bad4a83a364797d3`
+- Live-baseline verification: the public application byte-matched the active Pages source before this redesign; post-merge hashes and the critical live workflow remain mandatory publication gates
 
 ## Functionality ledger
 
 | Surface | Reachable capability and intended outcome | State or input contract |
 | --- | --- | --- |
-| Pupil setup | Choose Challenge, choose Support, Begin | Both sliders retain independent `0-100` values; setup remains the default first-run route |
+| Pupil setup | Choose Challenge, choose Help, Start | Both sliders retain independent `0-100` values; setup remains the default first-run route |
 | Setup header | Choose an optional local profile, enter/exit Full screen, open Settings | Full screen is always labelled; Guest remains available; no hover-only route |
 | Practice options | Select Mix, Focus, Quick Fire, Think or My Mix; optionally select a focus; use four quick starts | Advanced choices remain behind one labelled disclosure and cannot invalidate the selected challenge |
 | Shared practice | Decode a configuration-only URL, inspect its summary, Begin or return to settings | No profile, name, evidence or note may appear in a shared URL |
 | Pupil practice | Read one generated question, inspect any prompt visual, enter a numeric/decimal/fraction answer or choose an option, Check, retry and advance | Question, answer, scaffold, model and representation must agree; selected challenge remains authoritative |
 | Mathematical generation | Generate questions across the complete family registry, including estimation, bonds, doubling/halving, sequences, fractions, decimals, comparison and error-spotting | The displayed prompt, exact answer, metadata, steps and visual model preserve the same mathematical meaning; an unknown is never exposed by its representation |
-| Practice help | Reveal Hint, See it, Steps and Model progressively; hide help; reveal Another way | Support changes structure exposure, never mathematical challenge; only valid stages appear |
-| Practice utilities | Open Jot, undo/erase/clear temporary ink, adjust allowed practice settings, enter teacher-led view, open Settings, Finish | Jotting remains temporary; locked teacher settings remain visible and honest; every temporary mode has an exit |
+| Practice help | Reveal Hint, Picture, Steps and Worked example progressively; hide help; reveal Another way | Help changes structure exposure, never mathematical challenge; only valid stages appear |
+| Practice utilities | Open Jot, undo/erase/clear temporary ink, adjust allowed practice settings, enter Class view, open Settings, Finish | Jotting remains temporary; locked teacher settings remain visible and honest; every temporary mode has an exit |
 | Number entry | Touch keypad, hardware digits, decimal point, fraction separator, delete and Enter | Only answer-compatible keys appear; incomplete answers cannot be submitted; button focus must not block later hardware entry |
-| Teacher-led view | Enter/exit teacher view, use Full screen, reveal stages/answer, show Model or Another way, create a Related question, Jot, show class prompts, move Next or Finish | Class questions do not create individual pupil evidence; exits remain labelled; keyboard shortcuts mirror controls |
+| Class view | Enter/exit Class view, use Full screen, reveal stages/answer, show a Worked example or Another way, create a Related question, Jot, show class prompts, move Next or Finish | Class questions do not create individual pupil evidence; exits remain labelled; keyboard shortcuts mirror controls |
 | Keyboard shortcuts | Practice number entry; class-view Space, N, H, M, A, J, F and Escape | Shortcuts do not fire while typing or while a conflicting dialog is open |
 | Session summary | Distinguish pupil practice, class practice and mixed use; practise/teach again or Finish | Summary evidence distinguishes first-try independent, retry, supported and modelled success without ranking |
-| Pupil settings dialog | Larger mathematics, stronger contrast, reduced motion, larger targets, simpler screen, reset pupil preferences | Modal focus is trapped and restored; reset clears the active engine, active-session record, learning/history records and their recovery copies so removed state cannot reappear |
+| Pupil settings dialog | Larger maths, stronger contrast, reduced motion, larger buttons, fewer details, reset pupil settings | Modal focus is trapped and restored; reset clears the active engine, active-session record, learning/history records and their recovery copies so removed state cannot reappear |
 | Profile picker | Search when needed, choose Guest or one active profile | Archived profiles are excluded; changing identity does not leak another pupil's unfinished state |
 | Teacher access | Configure or enter a four-digit local code, or continue without one when first configuring | Code is explicitly local convenience, not account security; incorrect input is announced |
 | Teacher Start | Choose whole-class/Guest, a group or one pupil; launch six built-in presets, saved presets or recent sessions | Group practice creates no individual evidence; presets preserve complete session configuration |
@@ -39,7 +38,7 @@ This document is the functionality ledger, issue register and final evidence rec
 | Teacher Review | Filter profiles/evidence, inspect five evidence lenses, recommendations, misconception patterns and notes; launch follow-up | Evidence distinguishes supported from independent success and never claims mastery from inadequate samples |
 | Teacher Settings | Accessibility, profile privacy, profiles/groups, teacher code, data management and version | Device-local limitations remain explicit; destructive actions require specific confirmation |
 | Teacher dialogs | Add profiles, create group, save/edit preset, create practice link, preview print | Native modal semantics, labelled headings, focus containment/restoration and Escape/close operation; blank required profile and preset names cannot be submitted |
-| Print | A4 or fluency strip; 5/10/15/20/30 questions where supported; portrait/landscape; bounded title; name/date; colour/monochrome; answer sheet | Printed questions retain instructions, every answer choice and conservative versions of supported models; unknown markers stay concealed; no missing schema field is replaced with invented mathematics; orientation changes the real `@page`; question and answer sheets paginate separately; UI is absent from paper |
+| Print | A4 or practice strip; 5/10/15/20/30 questions where supported; portrait/landscape; bounded title; name/date; colour/monochrome; answer sheet | Printed questions retain instructions, every answer choice and conservative versions of supported models; unknown markers stay concealed; no missing schema field is replaced with invented mathematics; orientation changes the real `@page`; question and answer sheets paginate separately; UI is absent from paper |
 | Export/import | CSV summary, versioned evidence JSON, evidence import with explicit profile mapping | Imported content is schema-validated and capped at 5 MB; profile identity is never guessed; CSV cells beginning with spreadsheet formula characters, including after leading whitespace, are neutralised |
 | Complete backup/restore | Export and restore classroom data plus preferences, learning state, generator history, unfinished practice and last summary; merge or replace | Replacement first offers a safety backup; complete application data is restored only in Replace mode; Merge preserves device-specific application state; legacy replacement resets omitted state instead of leaking current values; local teacher code and unrecognised/unsafe fields are excluded |
 | Persistence | Preferences, learning state, generator history, classroom data, active session and last summary | First load is safe; storage denial/quota failure is reported honestly; corrupt bytes remain untouched and receive an exact quarantine copy where storage permits; Guest, one-pupil and group sessions restore typed answers, selected choices, feedback and help state |
@@ -56,6 +55,12 @@ The repair state below reflects the final pre-publication source and rendered ga
 
 | Severity | Finding | Release state |
 | --- | --- | --- |
+| P1 | The public product identity was fragmented across “Year 4”, “Fluency” and browser/PWA metadata instead of one clear name | Repaired: all public product surfaces, exports and default print titles use `4S Arithmetic`; legacy internal storage/cache identifiers remain unchanged for compatibility |
+| P1 | An undefined font variable invalidated the screen font stack, causing a hard-to-read browser serif fallback | Repaired at the typography source; rendered setup, practice and teacher surfaces use the intended system sans stack |
+| P1 | Tablet/laptop practice stacked the question, help and response vertically, then forced scrolling that separated the calculation from the keypad | Repaired with one question-content/response-dock composition; 1024×768 and 1180×820 complete every help stage without page scrolling |
+| P1 | The reported `14 × 7 + 58` item displayed an unrelated 7–14 number line and a generic worked model | Repaired: the picture and steps now preserve `14 × 7 = 98 → 98 + 58 = □`, and the worked example completes the active calculation as 156 |
+| P1 | Class view dimmed essential exits/status, could carry an open setup drawer over the equation, omitted answer choices, and clipped the revealed numeric action row at 1920×1080 | Repaired; independent numeric/choice stage and reveal matrices at phone, tablet, desktop and classroom-display sizes passed with all labelled exits/actions reachable |
+| P2 | Large-screen setup spacing left Practice options and Teacher tools below the fold despite ample width | Repaired; the complete setup surface fits 1024×768, 1180×820, 1366×768, 1440×900 and 1920×1080 without page scrolling |
 | P1 | Estimation models could display unrelated arithmetic instead of the active question's estimation steps | Repaired; deterministic mathematics corpus passed |
 | P1 | Twenty-bond ten-frames did not preserve the complete known addend, and double/half models either omitted the known whole or risked labelling the answer | Repaired; deterministic mathematics corpus passed |
 | P1 | Missing-whole fraction bars and sequence number lines could expose the value the pupil was meant to supply | Repaired; deterministic mathematics corpus passed |
@@ -83,59 +88,60 @@ The repair state below reflects the final pre-publication source and rendered ga
 | P2 | Historical style generations competed in the cascade; the authoritative pupil layer contained a second late override pass | Repaired; CSS release contract passed |
 | P1 | Exact-height A4 sheets combined with the final question/answer boundary emitted an unintended phantom/partial landscape page | Repaired at the pagination root: A4 sheets no longer use exact height and answer separation is applied deterministically; all final PDF pages passed |
 | P1 | The A4 question-to-answer page break remained active with answers disabled, producing a blank final page | Repaired with an explicit answer-sheet pagination state; the answers-off artifact is exactly three nonblank question pages |
-| P2 | Production JavaScript bundle exceeds Vite's 500 kB advisory threshold | Non-blocking debt: 520.87 kB uncompressed / 149.51 kB gzip; functional, performance and production-build gates passed |
+| P2 | Production JavaScript bundle exceeds Vite's 500 kB advisory threshold | Non-blocking debt: 526.44 kB uncompressed / 150.86 kB gzip; functional, performance and production-build gates passed |
 
 ## Release evidence — latest consolidated gate
 
-Release status: **PASS — all pre-publication gates completed on the current tree.** Commit, pull request, merge, deployment and live verification remain pending publication and are not implied by this result.
+Release status: **PASS — all pre-publication gates passed on the frozen source after the final Class-view repair.** Commit, remote publication, merge, deployment and live verification remain separate mandatory gates.
 
 ### Source and corpus
 
-- Working branch: `release/year-4-fluency-ultimate`
-- Candidate ancestry: `b92d1fd4f7e477e2f27ab7a16f86c4fe517897bf`; exact containing release commit: pending publication
+- Working branch: `release/4s-arithmetic-reimagined`
+- Candidate ancestry: `92161581c5957293d65e7682bad4a83a364797d3`; exact containing release commit: pending publication
 - Pull request: pending publication
 - Merge/default-branch commit: pending publication
 - TypeScript check: pass
 - Production build: pass
-- Source tests: **99/99 passed**
-- Mathematics audit: `npm run audit:math -- --count 30` passed
+- Source tests: **110/110 passed after the final source change**
+- Mathematics audit: `npm run audit:math -- --count 20` passed
 - Release audit: **21,000 digital questions; 95 families; 9 strands; 21,000 representations; 150 print questions; 4,000 retained evidence records; 500-question sustained session**
 - Production dependency audit: **0 vulnerabilities** (`npm audit --omit=dev`)
-- Production bundle: application JavaScript **520.87 kB / 149.51 kB gzip**; CSS **133.52 kB / 22.99 kB gzip**. The JavaScript chunk-size warning is recorded as non-blocking P2 debt.
+- Final production bundle: application JavaScript **526.44 kB / 150.86 kB gzip**; CSS **137.55 kB / 23.66 kB gzip**. The JavaScript chunk-size warning is recorded as non-blocking P2 debt.
 
 ### Rendered browser, responsive and accessibility evidence
 
 - Engine: Sparticuz Chromium through Puppeteer against the local production build
-- Responsive/human-factors matrix: **25 rendered states passed; 0 overflow, clipping, target-size or dialog-boundary failures**
+- Standard responsive/human-factors matrix: **25/25 rendered states passed; 0 overflow, clipping, target-size or dialog-boundary failures**
 - Coverage: setup and practice at 320×568, 390×844, 430×932, 768×1024, 820×1180, 1024×768, 1180×820, 1366×768, 1440×900 and 1920×1080; 720×450 at 2× scale for 200% zoom; plus rotation, settings-dialog and narrow profile states
 - Full-screen exit remained visible; orientation change preserved the active question; setup and question transitions received the intended focus; blank profile creation remained disabled; the narrow profile control retained its accessible name
-- Axe: **9 unique states scanned; 0 A/AA violations**. Automated indeterminate contrast results on overlapping/non-text dialog and print nodes were resolved through the source contrast contract and rendered inspection, leaving 0 unresolved violations.
-- Representative screenshots: `/tmp/year4-release-evidence/*-setup.png`, `/tmp/year4-release-evidence/*-practice.png` and `/tmp/year4-release-evidence/small-phone-profile-setup.png`
+- Independent expanded matrix: **240 rendered screenshots** across eight required viewports, covering numeric and choice pupil stages 0–4; numeric and choice Class stages 0–4 plus answer reveal; setup, settings, summary and all teacher destinations. The exact reported 1920×1080 numeric reveal had no horizontal/vertical scroll and no clipped or off-viewport action.
+- Automated accessibility: **126 independent Axe A/AA scans plus 9 standard scans; 0 violations**. Focused accessibility-tree inspection preserved the complete four-choice mathematical names and announced only the revealed correct choice as `correct answer`.
+- Representative screenshots: `/tmp/4s-independent-audit/*` and `/tmp/year4-release-evidence/*`
 
 ### Persistence, recovery, offline and runtime evidence
 
 - Guest unfinished response round-trip: saved `1`, restored `1`, exact match; Continue was reachable after reload
 - Corrupt storage: the exact raw value `{broken` remained quarantined, the recovery warning appeared and the application stayed usable
 - Storage denial: an honest non-destructive warning appeared and practice remained usable
-- Multi-tab reconciliation, complete backup/replace, legacy restore, reset and exact boundary-value round trips passed in the 99-test source suite
+- Multi-tab reconciliation, complete backup/replace, legacy restore, reset and exact boundary-value round trips passed in the 110-test source suite
 - Offline: service worker controlled the production page; a network-disabled reload completed and the application remained visible and usable
 - Runtime/network: **0 console errors; 0 page errors; 0 failed required requests**
-- Local production performance sample: Largest Contentful Paint **56 ms**, Cumulative Layout Shift **0**, DOMContentLoaded **29.3 ms**, load **29.3 ms**, with **628 ms** total harness observation time
+- Final local production performance sample: Largest Contentful Paint **44 ms**, Cumulative Layout Shift **0**, DOMContentLoaded/load **24.1 ms**, with **844 ms** total harness observation time
 
 ### Print and PDF evidence
 
 - Browser print structure: 30 questions, including 15 multiple-choice questions; one separate answer sheet; guided choices and missing-fraction answers remained concealed on question sheets; no title overflow; print-only page style cleaned up after generation
-- Fluency strip: both five-question sheets had equal client/scroll height with no overflow in screen and print media
+- Practice strip: both five-question sheets had equal client/scroll height with no overflow in screen and print media
 - Pagination root repair: A4 sheets no longer impose an exact content height; the question-to-answer break is applied only when an answer sheet exists, and the answers-off question sheet suppresses trailing fragmented whitespace
 - A4 portrait: 4 pages at 595.92×841.92 pt; rendered-page inspection passed
 - A4 landscape: 5 pages at 841.92×595.92 pt; rendered-page inspection passed
 - Strip artifact: 2 A4 carrier pages; rendered-page inspection passed
 - Answers-off A4 portrait: 3 question-only pages at 595.92×841.92 pt; no blank page or answer sheet
-- All **14 final PDF pages** were rendered at **150 dpi** and inspected: every page was nonblank, with no overlap, clipping, orphaned content or unintended answer exposure
+- All **14 final PDF pages** were rendered at **150 dpi** and inspected after the final source change: every page was nonblank, with no overlap, clipping, orphaned content or unintended answer exposure; the one scaled preview ambiguity was confirmed legible at 300 dpi
 - Evidence artifacts: `/tmp/year4-release-evidence/print-a4-portrait.pdf`, `/tmp/year4-release-evidence/print-a4-landscape.pdf`, `/tmp/year4-release-evidence/print-strip.pdf`, `/tmp/year4-release-evidence/print-a4-no-answers.pdf` and rendered page images beneath `/tmp/year4-release-evidence/`
 
 ### Publication and live verification
 
-- Current live Pages source: `release/build-3-rams-final` at `91b4100b47c32016d2599dd2f1c1d1d9d48b0331`
+- Current live Pages source observed at candidate start: `release/build-3-rams-final` at `92161581c5957293d65e7682bad4a83a364797d3`
 - Candidate release commit, pull request, merge SHA and production asset checksums: pending publication
 - Candidate live smoke test and cache-bypassing link: pending publication

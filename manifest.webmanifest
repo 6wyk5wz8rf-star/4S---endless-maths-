@@ -1,11 +1,11 @@
 {
-  "name": "Year 4 Fluency",
-  "short_name": "Fluency",
-  "description": "Calm, endless and intelligently scaffolded Year 4 mathematics practice.",
+  "name": "4S Arithmetic",
+  "short_name": "4S Arithmetic",
+  "description": "Clear, calm Year 4 arithmetic practice with adjustable challenge and help.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f4f1e8",
-  "theme_color": "#24375d",
+  "background_color": "#f6f2e8",
+  "theme_color": "#142443",
   "icons": [
     {
       "src": "./favicon.svg",
