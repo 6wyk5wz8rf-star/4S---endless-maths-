@@ -14,9 +14,11 @@ import {
   createClassroomState,
   createCsvSummary,
   createEvidenceExport,
+  csvCell,
   decodePracticeConfig,
   encodePracticeConfig,
   migrateClassroomState,
+  mergeClassroomStates,
   normaliseEvent,
   normaliseEvents,
   normalisePracticeConfig,
@@ -375,6 +377,47 @@ test("exports are versioned, omit access codes and retain only useful evidence d
   assert.equal(validateClassroomPackage(backup, CLASSROOM_PACKAGE_TYPE).valid, true);
 });
 
+test("complete backups optionally preserve sanitised application state and restore it only in replace mode", () => {
+  const current = upsertProfile(createClassroomState(), { id: "current", label: "Current" });
+  const incoming = upsertProfile(createClassroomState(), { id: "incoming", label: "Incoming" });
+  const applicationData = JSON.parse(JSON.stringify({
+    preferences: { challenge: 0, support: 100, preferences: { largerText: true } },
+    learningState: { "fractions:equivalence": { attempts: 3, score: 0.5 } },
+    generatorHistory: [{ family: "fractions", seed: "α" }],
+    activeSession: { id: "active-one", answer: "3/8", selectedChoice: "⅜" },
+    lastSession: { id: "complete-one", summary: "line one\nline two" },
+    ignoredField: { shouldNotSurvive: true },
+  }));
+  applicationData.preferences.__proto__ = { polluted: true };
+  const backup = createClassroomBackup(incoming, { applicationData });
+  assert.deepEqual(Object.keys(backup.applicationData).sort(), ["activeSession", "generatorHistory", "lastSession", "learningState", "preferences"]);
+  assert.equal(Object.hasOwn(backup.applicationData.preferences, "__proto__"), false);
+  assert.equal(Object.prototype.polluted, undefined);
+  assert.equal(validateClassroomPackage(backup, CLASSROOM_PACKAGE_TYPE).valid, true);
+
+  const replacePreview = previewBackupRestore(current, backup, { mode: "replace" });
+  assert.equal(replacePreview.hasApplicationData, true);
+  assert.equal(replacePreview.applicationDataAction, "restore");
+  assert.match(replacePreview.warning, /preferences.*restored/i);
+  const replaced = restoreClassroomBackup(current, backup, { mode: "replace" });
+  assert.deepEqual(replaced.applicationData, backup.applicationData);
+
+  const mergePreview = previewBackupRestore(current, backup, { mode: "merge" });
+  assert.equal(mergePreview.applicationDataAction, "preserve-current");
+  assert.match(mergePreview.warning, /only restored in Replace mode/i);
+  const merged = restoreClassroomBackup(current, backup, { mode: "merge" });
+  assert.equal(merged.applicationData, null, "merge must not overwrite device-specific pupil state");
+
+  const legacyBackup = createClassroomBackup(incoming);
+  assert.equal(Object.hasOwn(legacyBackup, "applicationData"), false);
+  assert.equal(restoreClassroomBackup(current, legacyBackup, { mode: "replace" }).applicationData, null);
+  const hostile = { ...backup, applicationData: JSON.parse('{"preferences":{"__proto__":{"polluted":true}}}') };
+  const validation = validateClassroomPackage(hostile, CLASSROOM_PACKAGE_TYPE);
+  assert.equal(validation.valid, false);
+  assert.match(validation.errors.join(" "), /not permitted/i);
+  assert.equal(Object.prototype.polluted, undefined);
+});
+
 test("backup restore previews merge/replace and never silently overwrites during merge", () => {
   let current = upsertProfile(createClassroomState(), { id: "current", label: "Current" });
   current = appendEvents(current, [event({ id: "shared", profileId: "current", index: 0 })]);
@@ -406,6 +449,49 @@ test("backup restore previews merge/replace and never silently overwrites during
   assert.equal(capped.report.rejectedForCapacity, 1);
 });
 
+test("multi-tab classroom reconciliation is deterministic, idempotent and unions every durable collection", () => {
+  let left = createClassroomState({ now: "2026-08-01T09:00:00Z", settings: { lastChallenge: 24 } });
+  left = upsertProfile(left, { id: "shared-profile", label: "Earlier label", groupIds: ["shared-group"], updatedAt: "2026-08-01T10:00:00Z" });
+  left = upsertProfile(left, { id: "left-profile", label: "Left" });
+  left = upsertGroup(left, { id: "shared-group", name: "Shared", profileIds: ["left-profile"] });
+  left = upsertProfile(left, { id: "shared-profile", label: "Earlier label", groupIds: ["shared-group"], updatedAt: "2026-08-01T10:00:00Z" });
+  left = upsertPreset(left, { id: "left-preset", name: "Left preset" });
+  left = upsertSession(left, { id: "left-session", profileIds: ["left-profile"], startedAt: "2026-08-01T10:00:00Z" });
+  left = upsertNote(left, { id: "left-note", subjectType: "profile", subjectId: "left-profile", text: "Left note" });
+  left = appendEvents(left, [event({ id: "left-event", profileId: "left-profile", index: 1 })]);
+  left = { ...left, recentSessionIds: ["left-session"], meta: { ...left.meta, updatedAt: "2026-08-01T11:00:00Z" } };
+
+  let right = createClassroomState({ now: "2026-08-01T09:00:00Z", settings: { lastChallenge: 86, largerText: true } });
+  right = upsertProfile(right, { id: "shared-profile", label: "Newer label", groupIds: ["right-group"], updatedAt: "2026-08-02T10:00:00Z" });
+  right = upsertProfile(right, { id: "right-profile", label: "Right" });
+  right = upsertGroup(right, { id: "shared-group", name: "Shared", profileIds: ["right-profile"] });
+  right = upsertGroup(right, { id: "right-group", name: "Right group", profileIds: ["shared-profile"] });
+  right = upsertProfile(right, { id: "shared-profile", label: "Newer label", groupIds: ["right-group"], updatedAt: "2026-08-02T10:00:00Z" });
+  right = upsertPreset(right, { id: "right-preset", name: "Right preset" });
+  right = upsertSession(right, { id: "right-session", profileIds: ["right-profile"], startedAt: "2026-08-02T10:00:00Z" });
+  right = upsertNote(right, { id: "right-note", subjectType: "profile", subjectId: "right-profile", text: "Right note" });
+  right = appendEvents(right, [event({ id: "right-event", profileId: "right-profile", index: 2 })]);
+  right = { ...right, recentSessionIds: ["right-session"], meta: { ...right.meta, updatedAt: "2026-08-02T11:00:00Z" } };
+
+  const leftRight = mergeClassroomStates(left, right);
+  const rightLeft = mergeClassroomStates(right, left);
+  assert.deepEqual(leftRight, rightLeft, "tab arrival order must not change the reconciled state");
+  assert.deepEqual(mergeClassroomStates(leftRight, leftRight), leftRight, "reapplying a storage event must be a no-op");
+  assert.deepEqual(leftRight.profiles.map((item) => item.id).sort(), ["left-profile", "right-profile", "shared-profile"]);
+  assert.deepEqual(leftRight.groups.map((item) => item.id).sort(), ["right-group", "shared-group"]);
+  assert.ok(leftRight.presets.some((item) => item.id === "left-preset"));
+  assert.ok(leftRight.presets.some((item) => item.id === "right-preset"));
+  assert.deepEqual(leftRight.sessions.map((item) => item.id).sort(), ["left-session", "right-session"]);
+  assert.deepEqual(leftRight.notes.map((item) => item.id).sort(), ["left-note", "right-note"]);
+  assert.deepEqual(leftRight.events.map((item) => item.id).sort(), ["left-event", "right-event"]);
+  assert.deepEqual(leftRight.recentSessionIds, ["left-session", "right-session"]);
+  assert.equal(leftRight.profiles.find((item) => item.id === "shared-profile").label, "Newer label");
+  assert.deepEqual(leftRight.profiles.find((item) => item.id === "shared-profile").groupIds, ["right-group", "shared-group"]);
+  assert.deepEqual(leftRight.groups.find((item) => item.id === "shared-group").profileIds, ["left-profile", "right-profile"]);
+  assert.equal(leftRight.settings.lastChallenge, 86);
+  assert.equal(leftRight.settings.largerText, true);
+});
+
 test("CSV summary is calm, escaped and includes evidence rather than rankings", () => {
   let state = upsertProfile(createClassroomState(), { id: "p1", label: "Smith, Ada" });
   state = appendEvents(state, [event({ id: "e1", profileId: "p1", index: 1 })]);
@@ -415,4 +501,15 @@ test("CSV summary is calm, escaped and includes evidence rather than rankings", 
   assert.match(csv, /multiplication,derived facts/);
   assert.equal(csv.includes("Rank"), false);
   assert.equal(csv.includes("Speed"), false);
+});
+
+test("CSV cells neutralise spreadsheet formulas after optional leading whitespace", () => {
+  for (const attack of ["=HYPERLINK(\"https://example.test\")", "+1+1", "-2+3", "@SUM(A1:A2)", "  =cmd|' /C calc'!A0"]) {
+    const escaped = csvCell(attack);
+    const unquoted = escaped.startsWith('"') ? escaped.slice(1, -1).replaceAll('""', '"') : escaped;
+    assert.equal(unquoted.startsWith("'"), true, attack);
+  }
+  let state = upsertProfile(createClassroomState(), { id: "formula-profile", label: "=HYPERLINK(evil)" });
+  state = appendEvents(state, [event({ id: "formula-event", profileId: "formula-profile" })]);
+  assert.match(createCsvSummary(state), /'=HYPERLINK\(evil\)/);
 });

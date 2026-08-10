@@ -23,6 +23,7 @@ import {
   createEvidenceExport,
   decodePracticeConfig,
   encodePracticeConfig,
+  mergeClassroomStates,
   migrateClassroomState,
   normalisePracticeConfig,
   previewBackupRestore,
@@ -34,7 +35,8 @@ import {
   upsertProfile,
   upsertSession,
 } from "@/lib/classroom-mastery.mjs";
-import { createPrintPractice } from "@/lib/classroom-print.mjs";
+import { createPrintPractice, createPrintPreview, normalisePrintMathText } from "@/lib/classroom-print.mjs";
+import { corruptRecordKey, readStoredJson, removeStoredKeys, resolveStorage, writeStoredJson } from "@/lib/local-persistence.mjs";
 import TeacherTools, { DEFAULT_TEACHER_CONFIG } from "./TeacherTools";
 import type {
   AccessibilitySettings,
@@ -204,6 +206,17 @@ const LEARNING_KEY = "year4-fluency-learning-v2";
 const CLASSROOM_KEY = "year4-fluency-classroom-v3";
 const ACTIVE_SESSION_KEY = "year4-fluency-active-session-v3";
 const APP_VERSION = "Build 3";
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const STORAGE_WARNING = "This browser cannot save changes right now. Practice can continue, but closing or reloading may lose this session.";
+const CORRUPT_STORAGE_WARNING = "Some saved data was damaged and could not be restored. An exact local recovery copy was preserved, and this screen opened with safe defaults.";
+
+function browserStorage() {
+  return resolveStorage(typeof window === "undefined" ? undefined : window);
+}
+
+function withRecoveryRecords(keys: string[]) {
+  return [...keys, ...keys.map(corruptRecordKey)];
+}
 
 const MODES: Array<{ id: PracticeMode; label: string; note: string }> = [
   { id: "mix", label: "Mix", note: "Connected mixed fluency" },
@@ -400,6 +413,10 @@ function sessionProgressText(attempted: number, session: ActiveSession | null) {
   return `${attempted} ${attempted === 1 ? "question" : "questions"}`;
 }
 
+function sameIds(first: string[], second: string[]) {
+  return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+
 function timedProgressText(elapsed: number, totalSeconds: number) {
   const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0;
   if (progress < 0.2) return "just begun";
@@ -440,7 +457,7 @@ function spokenFraction(numerator: string, denominator: string) {
 }
 
 function normaliseFractionTokens(value: string) {
-  return String(value ?? "").replace(/(?<!\[)(-?\d+|□)\/(-?\d+|□)(?!\])/g, "[[$1/$2]]");
+  return normalisePrintMathText(value);
 }
 
 function accessibleMath(value: string) {
@@ -476,7 +493,7 @@ function MathText({ value }: { value: string }) {
         const match = segment.match(/^\[\[((?:-?\d+)|□)\/((?:-?\d+)|□)\]\]$/);
         if (!match) return <span key={`${segment}-${index}`}>{segment}</span>;
         return (
-          <span className="fraction" aria-label={spokenFraction(match[1], match[2])} key={`${segment}-${index}`}>
+          <span className="fraction" role="img" aria-label={spokenFraction(match[1], match[2])} key={`${segment}-${index}`}>
             <span>{match[1]}</span>
             <span>{match[2]}</span>
           </span>
@@ -545,7 +562,7 @@ function FractionEntry({ value }: { value: string }) {
     : `${numerator || "blank"} over blank`;
 
   return (
-    <span className="fraction fraction--entry" aria-label={description}>
+    <span className="fraction fraction--entry" role="img" aria-label={description}>
       <span>{numerator || "\u00a0"}</span>
       <span>{denominator || "\u00a0"}</span>
     </span>
@@ -613,7 +630,7 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
   if (visual.kind === "place-value") {
     const rows = Array.isArray(visual.rows) ? visual.rows as number[][] : [];
     return (
-      <div className="visual-model place-grid" role="img" aria-label={`${accessibleMath(visual.title)}. A place-value grid with thousands, hundreds, tens and ones.`}>
+      <div className="visual-model place-grid" role="img" aria-label={`${accessibleMath(visual.title)}. Place-value rows: ${rows.map((row, index) => `${index > 0 && visual.operator ? `${visual.operator} ` : ""}${row.join("")}`).join("; ")}. Columns are thousands, hundreds, tens and ones.`}>
         <div className="place-grid__head"><span>Th</span><span>H</span><span>T</span><span>O</span></div>
         {rows.map((row: number[], rowIndex: number) => (
           <div className="place-grid__row" key={rowIndex}>
@@ -678,7 +695,7 @@ function VisualScaffold({ visual }: { visual: VisualData }) {
     const groups = Math.min(visual.groups ?? 1, 12);
     const perGroup = Math.min(visual.perGroup ?? 1, 12);
     return (
-      <div className="visual-model counter-groups" role="img" aria-label={visual.title}>
+      <div className="visual-model counter-groups" role="img" aria-label={`${accessibleMath(visual.title)}. ${groups} equal groups of ${perGroup}, ${groups * perGroup} counters altogether.`}>
         {Array.from({ length: groups }, (_, group) => (
           <span key={group}>{Array.from({ length: perGroup }, (_, counter) => <i key={counter} />)}</span>
         ))}
@@ -881,7 +898,7 @@ function NumberPad({
     setValue(value + character);
   };
   return (
-    <div className="number-pad" aria-label="Number pad">
+    <div className="number-pad" role="group" aria-label="Number pad">
       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
         <button type="button" onClick={() => add(String(number))} disabled={disabled} key={number}>{number}</button>
       ))}
@@ -950,7 +967,7 @@ function ModeSelector({
       </button>
       {expanded && (
         <div className="mode-selector__panel">
-          <div className="mode-options" aria-label="Practice mode">
+          <div className="mode-options" role="group" aria-label="Practice mode">
             {visibleModes.map((item) => (
               <button
                 type="button"
@@ -986,6 +1003,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
   const drawing = useRef(false);
   const history = useRef<ImageData[]>([]);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [strokeCount, setStrokeCount] = useState(0);
 
   const clear = () => {
     const canvas = canvasRef.current;
@@ -994,6 +1012,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
     const context = canvas.getContext("2d");
     context?.clearRect(0, 0, canvas.width, canvas.height);
     history.current = [];
+    setStrokeCount(0);
   };
 
   const undo = () => {
@@ -1006,6 +1025,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.putImageData(previous, 0, 0);
     context.restore();
+    setStrokeCount(history.current.length);
   };
 
   useEffect(() => {
@@ -1035,6 +1055,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
         context.strokeStyle = "#24375d";
       }
       history.current = [];
+      setStrokeCount(0);
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -1050,7 +1071,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
   return (
     <div className="jot-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section ref={dialogRef} className="jot-sheet" role="dialog" aria-modal="true" aria-label="Temporary jotting space" tabIndex={-1}>
-        <header><span>Jot</span><div><button type="button" aria-pressed={tool === "pen"} onClick={() => setTool("pen")}>Pen</button><button type="button" aria-pressed={tool === "eraser"} onClick={() => setTool("eraser")}>Eraser</button><button type="button" onClick={undo}>Undo</button><button type="button" onClick={clear}>Clear</button><button type="button" onClick={onClose} aria-label="Close jotting space">Done</button></div></header>
+        <header><span>Jot</span><div><button type="button" aria-pressed={tool === "pen"} onClick={() => setTool("pen")}>Pen</button><button type="button" aria-pressed={tool === "eraser"} onClick={() => setTool("eraser")}>Eraser</button><button type="button" onClick={undo} disabled={strokeCount === 0}>Undo</button><button type="button" onClick={clear} disabled={strokeCount === 0}>Clear</button><button type="button" onClick={onClose} aria-label="Close jotting space">Done</button></div></header>
         <canvas
           ref={canvasRef}
           aria-label="Draw temporary working here"
@@ -1061,6 +1082,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
             if (context) {
               history.current.push(context.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height));
               history.current = history.current.slice(-12);
+              setStrokeCount(history.current.length);
               context.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
               context.lineWidth = tool === "eraser" ? 22 : 2.4;
             }
@@ -1231,6 +1253,7 @@ export default function FluencyApp() {
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [fallbackFullscreen, setFallbackFullscreen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [storageWarning, setStorageWarning] = useState("");
   const engineRef = useRef<EngineApi | null>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const effectiveSupportRef = useRef(26);
@@ -1242,6 +1265,24 @@ export default function FluencyApp() {
   const sessionEndPendingRef = useRef(false);
   const updateRequestedRef = useRef(false);
   const fullscreenActive = nativeFullscreen || fallbackFullscreen;
+
+  const persistLocalJson = useCallback((key: string, value: unknown) => {
+    const result = writeStoredJson(browserStorage(), key, value);
+    if (!result.ok) setStorageWarning(STORAGE_WARNING);
+    return result.ok;
+  }, []);
+
+  const removeLocalKeys = useCallback((keys: string | string[]) => {
+    const result = removeStoredKeys(browserStorage(), keys);
+    if (!result.ok) setStorageWarning(STORAGE_WARNING);
+    return result.ok;
+  }, []);
+
+  const readLocalJson = useCallback(<T,>(keys: string | string[], fallback: T): T => {
+    const result = readStoredJson(browserStorage(), keys, fallback as any);
+    if (!result.ok) setStorageWarning(result.error === "InvalidJson" ? CORRUPT_STORAGE_WARNING : STORAGE_WARNING);
+    return result.value as T;
+  }, []);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -1256,6 +1297,23 @@ export default function FluencyApp() {
       document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
     };
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const targetId = screen === "teacher" ? "teacher-main" : "main-content";
+      document.getElementById(targetId)?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hydrated, screen]);
+
+  useEffect(() => {
+    if (screen !== "practice" || !question?.id) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".question-panel")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [question?.id, screen]);
 
   useEffect(() => {
     if (!fallbackFullscreen) return;
@@ -1290,15 +1348,21 @@ export default function FluencyApp() {
     let savedLearning: Record<string, MasteryState> = {};
     let savedClassroom: any = null;
     let savedActiveSession: any = null;
-    try {
-      saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("year4-fluency-preferences-v2") ?? localStorage.getItem("year4-fluency-preferences-v1") ?? "null");
-      savedLearning = JSON.parse(localStorage.getItem(LEARNING_KEY) ?? "{}");
-      savedClassroom = JSON.parse(localStorage.getItem(CLASSROOM_KEY) ?? "null");
-      savedActiveSession = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
-    } catch {
-      // A damaged local record should never block practice.
-    }
+    const storage = browserStorage();
+    const savedResult = readStoredJson(storage, [STORAGE_KEY, "year4-fluency-preferences-v2", "year4-fluency-preferences-v1"], null);
+    const learningResult = readStoredJson(storage, LEARNING_KEY, {} as any);
+    const classroomResult = readStoredJson(storage, CLASSROOM_KEY, null);
+    const activeResult = readStoredJson(storage, ACTIVE_SESSION_KEY, null);
+    saved = savedResult.value && typeof savedResult.value === "object" && !Array.isArray(savedResult.value) ? savedResult.value : null;
+    savedLearning = learningResult.value && typeof learningResult.value === "object" && !Array.isArray(learningResult.value) ? learningResult.value : {};
+    savedClassroom = classroomResult.value;
+    savedActiveSession = activeResult.value;
+    const readResults = [savedResult, learningResult, classroomResult, activeResult];
+    const corruptStorageFound = readResults.some((result) => result.error === "InvalidJson");
+    const storageReadFailed = readResults.some((result) => !result.ok && result.error !== "InvalidJson");
     const timer = window.setTimeout(() => {
+      if (corruptStorageFound) setStorageWarning(CORRUPT_STORAGE_WARNING);
+      else if (storageReadFailed) setStorageWarning(STORAGE_WARNING);
       if (saved) {
         if (Number.isFinite(saved.challenge)) setChallenge(saved.challenge as number);
         if (Number.isFinite(saved.support)) {
@@ -1323,13 +1387,13 @@ export default function FluencyApp() {
       setClassroomState(migrated);
       setLearningState(savedLearning && typeof savedLearning === "object" ? savedLearning : {});
       if (savedActiveSession?.startedAt && Date.now() - Number(savedActiveSession.startedAt) < 48 * 60 * 60 * 1000) {
-        const resumeProfileId = Array.isArray(savedActiveSession.profileIds) ? savedActiveSession.profileIds[0] : null;
-        const profileStillAvailable = resumeProfileId && migrated.profiles?.some((profile: any) => profile.id === resumeProfileId && !profile.archived);
-        if (profileStillAvailable) {
+        const savedProfileIds = Array.isArray(savedActiveSession.profileIds) ? savedActiveSession.profileIds.map(String) : [];
+        const profilesStillAvailable = savedProfileIds.every((profileId: string) => migrated.profiles?.some((profile: any) => profile.id === profileId && !profile.archived));
+        if (profilesStillAvailable) {
           setResumeSnapshot(savedActiveSession);
-          setActiveProfileIds([resumeProfileId]);
+          setActiveProfileIds(savedProfileIds);
         } else {
-          localStorage.removeItem(ACTIVE_SESSION_KEY);
+          removeLocalKeys(ACTIVE_SESSION_KEY);
         }
       }
       const shared = decodePracticeConfig(`${window.location.search}${window.location.hash}`);
@@ -1345,13 +1409,31 @@ export default function FluencyApp() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ challenge, support, mode, focus, preferences }));
-  }, [challenge, support, mode, focus, preferences, hydrated]);
+    persistLocalJson(STORAGE_KEY, { challenge, support, mode, focus, preferences });
+  }, [challenge, support, mode, focus, preferences, hydrated, persistLocalJson]);
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(CLASSROOM_KEY, JSON.stringify(classroomState));
-  }, [classroomState, hydrated]);
+    persistLocalJson(CLASSROOM_KEY, classroomState);
+  }, [classroomState, hydrated, persistLocalJson]);
+
+  useEffect(() => {
+    if (!hydrated) return undefined;
+    const reconcileOtherTab = (event: StorageEvent) => {
+      if (event.key !== CLASSROOM_KEY || event.newValue === null) return;
+      try {
+        const incoming = JSON.parse(event.newValue);
+        setClassroomState((current: any) => {
+          const merged = mergeClassroomStates(current, incoming, { applicationVersion: APP_VERSION });
+          return JSON.stringify(merged) === JSON.stringify(current) ? current : merged;
+        });
+      } catch {
+        setStorageWarning("Another tab has classroom data that could not be read. This tab has kept its current data unchanged.");
+      }
+    };
+    window.addEventListener("storage", reconcileOtherTab);
+    return () => window.removeEventListener("storage", reconcileOtherTab);
+  }, [hydrated]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -1398,8 +1480,8 @@ export default function FluencyApp() {
   }, [activeSession, boardMode, question, screen]);
 
   useEffect(() => {
-    if (!hydrated || screen !== "practice" || !activeSession || activeSession.profileIds.length !== 1 || !question) return;
-    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
+    if (!hydrated || screen !== "practice" || !activeSession || !question) return;
+    persistLocalJson(ACTIVE_SESSION_KEY, {
       ...activeSession,
       question,
       engineState: engineRef.current?.getState() ?? null,
@@ -1413,9 +1495,14 @@ export default function FluencyApp() {
       scaffoldStage,
       independentStreak,
       feedback,
+      feedbackText,
+      answer,
+      selectedChoice,
+      anotherWayOpen,
+      lastMisconception,
       savedAt: Date.now(),
-    }));
-  }, [activeSession, attempts, challenge, effectiveSupport, elapsed, feedback, focus, hydrated, independentStreak, mode, question, scaffoldStage, screen, stats, support]);
+    });
+  }, [activeSession, anotherWayOpen, answer, attempts, challenge, effectiveSupport, elapsed, feedback, feedbackText, focus, hydrated, independentStreak, lastMisconception, mode, persistLocalJson, question, scaffoldStage, screen, selectedChoice, stats, support]);
 
   useEffect(() => () => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
@@ -1441,7 +1528,7 @@ export default function FluencyApp() {
     if (!engineRef.current) return;
     const item = engineRef.current.next();
     syncEngineSelection(engineRef.current);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(engineRef.current.getHistory()));
+    persistLocalJson(HISTORY_KEY, engineRef.current.getHistory());
     setQuestion(item);
     setAnswer("");
     setSelectedChoice("");
@@ -1457,10 +1544,10 @@ export default function FluencyApp() {
     const selectedStage = initialStage(effectiveSupportRef.current, item, activeSession?.config);
     setScaffoldStage(item.metadata.connectionKind === "near-transfer" ? Math.min(2, selectedStage) : selectedStage);
     questionStartedAt.current = Date.now();
-  }, [activeSession?.config, initialStage, syncEngineSelection]);
+  }, [activeSession?.config, initialStage, persistLocalJson, syncEngineSelection]);
 
   const begin = (presetKey?: keyof typeof PRESETS, configured?: TeacherSessionConfig, selectedProfiles = activeProfileIds) => {
-    localStorage.removeItem(ACTIVE_SESSION_KEY);
+    removeLocalKeys(ACTIVE_SESSION_KEY);
     let nextChallenge = challenge;
     let nextSupport = support;
     let nextMode = mode;
@@ -1501,12 +1588,8 @@ export default function FluencyApp() {
     setFocus(nextFocus);
     const startedAt = Date.now();
     const sessionSeed = configured?.seedMode === "same" ? (configured.seed?.trim() || "year-4-fluency") : `practice-${startedAt}`;
-    let recentSignatures: string[] = [];
-    try {
-      recentSignatures = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? localStorage.getItem("year4-fluency-generator-history-v1") ?? "[]");
-    } catch {
-      recentSignatures = [];
-    }
+    const storedHistory = readLocalJson<unknown>([HISTORY_KEY, "year4-fluency-generator-history-v1"], []);
+    const recentSignatures = Array.isArray(storedHistory) ? storedHistory.map(String) : [];
     const reproducible = configured?.seedMode === "same";
     const engine = createEngine({
       seed: sessionSeed,
@@ -1550,7 +1633,7 @@ export default function FluencyApp() {
     setScreen("practice");
     const item = engine.next();
     syncEngineSelection(engine);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(engine.getHistory()));
+    persistLocalJson(HISTORY_KEY, engine.getHistory());
     setQuestion(item);
     setAnswer("");
     setSelectedChoice("");
@@ -1567,8 +1650,8 @@ export default function FluencyApp() {
     const range = savedConfig?.challenge.kind === "range" ? { min: savedConfig.challenge.min, max: savedConfig.challenge.max } : null;
     const savedChallenge = Number(resumeSnapshot.challenge ?? challenge);
     const savedSupport = Number(resumeSnapshot.support ?? support);
-    let recentSignatures: string[] = [];
-    try { recentSignatures = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]"); } catch { recentSignatures = []; }
+    const storedHistory = readLocalJson<unknown>(HISTORY_KEY, []);
+    const recentSignatures = Array.isArray(storedHistory) ? storedHistory.map(String) : [];
     const engine = createEngine(resumeSnapshot.engineState ? { state: resumeSnapshot.engineState } : {
       seed: resumeSnapshot.seed,
       challenge: savedChallenge,
@@ -1606,7 +1689,7 @@ export default function FluencyApp() {
     setActiveProfileIds(resumedSession.profileIds);
     setActiveSession(resumedSession);
     if (sessionAlreadyComplete) {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      removeLocalKeys(ACTIVE_SESSION_KEY);
       setResumeSnapshot(null);
       if (resumedStats.attempted === 0 && resumedStats.classQuestions === 0) {
         setActiveSession(null);
@@ -1633,16 +1716,19 @@ export default function FluencyApp() {
       return;
     }
     const resumedQuestion = resumeAfterCompletedAnswer ? engine.next() : resumeSnapshot.question;
+    const savedFeedback: Feedback = ["idle", "retry", "supported"].includes(resumeSnapshot.feedback) ? resumeSnapshot.feedback : "idle";
     syncEngineSelection(engine);
     setQuestion(resumedQuestion);
-    setAnswer("");
-    setSelectedChoice("");
+    setAnswer(resumeAfterCompletedAnswer ? "" : String(resumeSnapshot.answer ?? "").slice(0, 12));
+    setSelectedChoice(resumeAfterCompletedAnswer ? "" : String(resumeSnapshot.selectedChoice ?? ""));
     setAttempts(resumeAfterCompletedAnswer ? 0 : Number(resumeSnapshot.attempts ?? 0));
     questionAttemptedRef.current = !resumeAfterCompletedAnswer && Number(resumeSnapshot.attempts ?? 0) > 0;
-    setFeedback("idle");
-    setFeedbackText("");
+    setFeedback(resumeAfterCompletedAnswer ? "idle" : savedFeedback);
+    setFeedbackText(resumeAfterCompletedAnswer ? "" : String(resumeSnapshot.feedbackText ?? ""));
     setScaffoldStage(resumeAfterCompletedAnswer ? initialStage(Number(resumeSnapshot.effectiveSupport ?? savedSupport), resumedQuestion, savedConfig) : Number(resumeSnapshot.scaffoldStage ?? initialStage(Number(resumeSnapshot.effectiveSupport ?? savedSupport), resumedQuestion, savedConfig)));
     setIndependentStreak(Number(resumeSnapshot.independentStreak ?? 0));
+    setAnotherWayOpen(!resumeAfterCompletedAnswer && Boolean(resumeSnapshot.anotherWayOpen));
+    setLastMisconception(resumeAfterCompletedAnswer ? null : (typeof resumeSnapshot.lastMisconception === "string" ? resumeSnapshot.lastMisconception : null));
     setScreen("practice");
     questionStartedAt.current = Date.now();
   };
@@ -1699,8 +1785,8 @@ export default function FluencyApp() {
     if (!engineRef.current) return;
     const nextLearning = engineRef.current.getLearningState();
     setLearningState(nextLearning);
-    localStorage.setItem(LEARNING_KEY, JSON.stringify(nextLearning));
-  }, []);
+    persistLocalJson(LEARNING_KEY, nextLearning);
+  }, [persistLocalJson]);
 
   const recordEvidenceEvent = useCallback(({
     finalCorrect,
@@ -1995,7 +2081,7 @@ export default function FluencyApp() {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
     sessionEndPendingRef.current = false;
     if (statsRef.current.attempted === 0 && statsRef.current.classQuestions === 0) {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      removeLocalKeys(ACTIVE_SESSION_KEY);
       setResumeSnapshot(null);
       setActiveSession(null);
       setScreen("setup");
@@ -2008,8 +2094,8 @@ export default function FluencyApp() {
     statsRef.current = finalStats;
     setStats(finalStats);
     const endedAt = Date.now();
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ ...finalStats, challenge, support, mode, focus, endedAt }));
-    localStorage.removeItem(ACTIVE_SESSION_KEY);
+    persistLocalJson(SESSION_KEY, { ...finalStats, challenge, support, mode, focus, endedAt });
+    removeLocalKeys(ACTIVE_SESSION_KEY);
     setResumeSnapshot(null);
     if (activeSession) {
       setClassroomState((current: any) => {
@@ -2050,14 +2136,8 @@ export default function FluencyApp() {
 
   const resetPreferences = () => {
     if (!window.confirm("Reset saved settings and personal practice memory on this device?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem("year4-fluency-preferences-v2");
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(HISTORY_KEY);
-    localStorage.removeItem(LEARNING_KEY);
-    localStorage.removeItem("year4-fluency-preferences-v1");
-    localStorage.removeItem("year4-fluency-last-session-v1");
-    localStorage.removeItem("year4-fluency-generator-history-v1");
+    removeLocalKeys(withRecoveryRecords([STORAGE_KEY, "year4-fluency-preferences-v2", SESSION_KEY, HISTORY_KEY, LEARNING_KEY, ACTIVE_SESSION_KEY, "year4-fluency-preferences-v1", "year4-fluency-last-session-v1", "year4-fluency-generator-history-v1"]));
+    engineRef.current = null;
     setChallenge(54);
     setSupport(26);
     setEffectiveSupport(26);
@@ -2065,8 +2145,11 @@ export default function FluencyApp() {
     setMode("mix");
     setFocus(null);
     setLearningState({});
+    setResumeSnapshot(null);
+    setActiveSession(null);
     setPreferences(DEFAULT_PREFERENCES);
     setSettingsOpen(false);
+    setScreen("setup");
   };
 
   const toggleBoardMode = async () => {
@@ -2346,11 +2429,42 @@ export default function FluencyApp() {
 
   const exportBackup = () => {
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadLocalFile(`year-4-fluency-backup-${stamp}.json`, "application/json", JSON.stringify(createClassroomBackup(classroomState, { applicationVersion: APP_VERSION }), null, 2));
+    const storedHistory = readLocalJson<string[]>(HISTORY_KEY, []);
+    const storedActiveSession = readLocalJson<any>(ACTIVE_SESSION_KEY, null);
+    const currentSession = activeSession && question ? {
+      ...activeSession,
+      question,
+      engineState: engineRef.current?.getState() ?? null,
+      stats: { ...statsRef.current, elapsed },
+      challenge,
+      support,
+      effectiveSupport,
+      mode,
+      focus,
+      attempts,
+      scaffoldStage,
+      independentStreak,
+      feedback,
+      feedbackText,
+      answer,
+      selectedChoice,
+      anotherWayOpen,
+      lastMisconception,
+      savedAt: Date.now(),
+    } : storedActiveSession;
+    const applicationData = {
+      preferences: { challenge, support, mode, focus, preferences },
+      learningState,
+      generatorHistory: engineRef.current?.getHistory() ?? storedHistory,
+      activeSession: currentSession,
+      lastSession: readLocalJson<any>(SESSION_KEY, null),
+    };
+    downloadLocalFile(`year-4-fluency-backup-${stamp}.json`, "application/json", JSON.stringify(createClassroomBackup(classroomState, { applicationVersion: APP_VERSION, applicationData }), null, 2));
   };
 
   const importEvidence = async (file: File) => {
     try {
+      if (file.size > MAX_IMPORT_BYTES) return window.alert("This evidence file is larger than 5 MB and was not opened.");
       const packageValue = JSON.parse(await file.text());
       const firstPreview = previewEvidenceImport(classroomState, packageValue);
       if (!firstPreview.valid) return window.alert(firstPreview.errors.join("\n") || "This evidence file is not valid.");
@@ -2388,19 +2502,80 @@ export default function FluencyApp() {
     }
   };
 
+  const applyRestoredApplicationData = (applicationData: any, nextClassroomState: any) => {
+    engineRef.current = null;
+    if (!applicationData) {
+      removeLocalKeys([HISTORY_KEY, LEARNING_KEY, ACTIVE_SESSION_KEY, SESSION_KEY]);
+      setChallenge(54);
+      setSupport(26);
+      setEffectiveSupport(26);
+      effectiveSupportRef.current = 26;
+      setMode("mix");
+      setFocus(null);
+      setPreferences(DEFAULT_PREFERENCES);
+      setLearningState({});
+      setResumeSnapshot(null);
+      setActiveProfileIds([]);
+      return;
+    }
+
+    const restored = applicationData.preferences && typeof applicationData.preferences === "object" ? applicationData.preferences : {};
+    const nextChallenge = Number.isFinite(Number(restored.challenge)) ? Math.min(100, Math.max(0, Number(restored.challenge))) : 54;
+    const nextSupport = Number.isFinite(Number(restored.support)) ? Math.min(100, Math.max(0, Number(restored.support))) : 26;
+    const nextMode = MODES.some((item) => item.id === restored.mode) ? restored.mode as PracticeMode : "mix";
+    const nextFocus = typeof restored.focus === "string" ? restored.focus.slice(0, 80) : null;
+    const rawPreferences = restored.preferences && typeof restored.preferences === "object" ? restored.preferences : {};
+    const nextPreferences = { ...DEFAULT_PREFERENCES };
+    (Object.keys(DEFAULT_PREFERENCES) as Array<keyof Preferences>).forEach((key) => {
+      if (typeof rawPreferences[key] === "boolean") nextPreferences[key] = rawPreferences[key];
+    });
+    const nextLearning = applicationData.learningState && typeof applicationData.learningState === "object" && !Array.isArray(applicationData.learningState) ? applicationData.learningState : {};
+    const nextHistory = Array.isArray(applicationData.generatorHistory) ? applicationData.generatorHistory.map(String).slice(-500) : [];
+    const candidateSession = applicationData.activeSession && typeof applicationData.activeSession === "object" ? applicationData.activeSession : null;
+    const candidateProfileIds = Array.isArray(candidateSession?.profileIds) ? candidateSession.profileIds.map(String) : [];
+    const sessionProfilesExist = candidateProfileIds.every((profileId: string) => nextClassroomState.profiles?.some((profile: any) => profile.id === profileId && !profile.archived));
+    const sessionIsRecent = candidateSession?.startedAt && Date.now() - Number(candidateSession.startedAt) < 48 * 60 * 60 * 1000;
+    const nextResume = sessionProfilesExist && sessionIsRecent ? candidateSession : null;
+
+    setChallenge(nextChallenge);
+    setSupport(nextSupport);
+    setEffectiveSupport(nextSupport);
+    effectiveSupportRef.current = nextSupport;
+    setMode(nextMode);
+    setFocus(nextFocus);
+    setPreferences(nextPreferences);
+    setLearningState(nextLearning);
+    setResumeSnapshot(nextResume);
+    setActiveProfileIds(nextResume ? candidateProfileIds : []);
+    persistLocalJson(LEARNING_KEY, nextLearning);
+    persistLocalJson(HISTORY_KEY, nextHistory);
+    if (nextResume) persistLocalJson(ACTIVE_SESSION_KEY, nextResume);
+    else removeLocalKeys(ACTIVE_SESSION_KEY);
+    if (applicationData.lastSession && typeof applicationData.lastSession === "object") persistLocalJson(SESSION_KEY, applicationData.lastSession);
+    else removeLocalKeys(SESSION_KEY);
+  };
+
   const restoreBackup = async (file: File) => {
     try {
+      if (file.size > MAX_IMPORT_BYTES) return window.alert("This backup is larger than 5 MB and was not opened.");
       const packageValue = JSON.parse(await file.text());
       const choice = window.prompt("Type MERGE to preserve current data and add compatible records, or REPLACE to replace current classroom data.", "MERGE")?.trim().toUpperCase();
       if (choice !== "MERGE" && choice !== "REPLACE") return;
       const mode = choice === "REPLACE" ? "replace" : "merge";
       const preview = previewBackupRestore(classroomState, packageValue, { mode });
       if (!preview.valid) return window.alert(preview.errors.join("\n") || "This backup is not valid.");
-      if (!window.confirm(`${preview.warning}\n\n${preview.profiles} profiles · ${preview.events} evidence events · ${preview.duplicateEvents} duplicates`)) return;
+      const legacyResetWarning = mode === "replace" && !preview.hasApplicationData ? "\n\nThis older backup has no pupil preferences or learning memory; those values will reset rather than leak from the current installation." : "";
+      if (!window.confirm(`${preview.warning}${legacyResetWarning}\n\n${preview.profiles} profiles · ${preview.events} evidence events · ${preview.duplicateEvents} duplicates`)) return;
       if (mode === "replace") exportBackup();
       const result = restoreClassroomBackup(classroomState, packageValue, { mode });
       if (result.restored) {
         setClassroomState(result.state);
+        if (mode === "replace") {
+          applyRestoredApplicationData(result.applicationData, result.state);
+          setActiveSession(null);
+          setTeacherLocked(true);
+          setScreen("setup");
+        }
         window.alert("Backup restored.");
       }
     } catch {
@@ -2440,16 +2615,7 @@ export default function FluencyApp() {
       representationFrequency: ({ low: 0.15, balanced: 0.35, high: 0.65 })[config.representationFrequency],
       fixedSequence: config.seedMode === "same",
     }, learningState);
-    return {
-      title: pack.config.title,
-      questions: pack.questions.map((item: any) => ({
-        number: item.number,
-        display: item.instruction ? `${item.instruction} · ${item.display}` : item.display,
-        support: item.support?.kind === "prompt" ? item.support.hint : item.support?.kind === "guided" ? `${item.support.hint} ${item.support.steps.join(" ")}` : item.support?.kind === "model" ? `${item.support.title}: ${item.support.display} ${item.support.lines.join(" ")} = ${item.support.answer}` : undefined,
-        visual: item.support?.visual ?? item.promptVisual ?? undefined,
-        answer: item.answer,
-      })),
-    };
+    return createPrintPreview(pack) as PrintPreview;
   };
 
   const launchTeacherSession = (config: TeacherSessionConfig, profileIds?: string[]) => {
@@ -2476,7 +2642,8 @@ export default function FluencyApp() {
   };
 
   const resetCompleteApplication = () => {
-    for (const key of [STORAGE_KEY, SESSION_KEY, HISTORY_KEY, LEARNING_KEY, CLASSROOM_KEY, ACTIVE_SESSION_KEY, "year4-fluency-preferences-v2", "year4-fluency-preferences-v1", "year4-fluency-last-session-v2", "year4-fluency-last-session-v1", "year4-fluency-generator-history-v1"]) localStorage.removeItem(key);
+    removeLocalKeys(withRecoveryRecords([STORAGE_KEY, SESSION_KEY, HISTORY_KEY, LEARNING_KEY, CLASSROOM_KEY, ACTIVE_SESSION_KEY, "year4-fluency-preferences-v2", "year4-fluency-preferences-v1", "year4-fluency-last-session-v2", "year4-fluency-last-session-v1", "year4-fluency-generator-history-v1"]));
+    engineRef.current = null;
     setClassroomState(createClassroomState({ applicationVersion: APP_VERSION }));
     setLearningState({});
     setPreferences(DEFAULT_PREFERENCES);
@@ -2504,12 +2671,19 @@ export default function FluencyApp() {
   }), [classroomState.profiles, classroomState.settings?.profilePrivacy, teacherProfiles]);
 
   const activeProfile = pupilProfiles.find((profile) => profile.id === activeProfileIds[0]);
-  const resumeProfileId = Array.isArray(resumeSnapshot?.profileIds) ? resumeSnapshot.profileIds[0] : null;
-  const resumeProfile = pupilProfiles.find((profile) => profile.id === resumeProfileId && !profile.archived);
-  const visibleResumeSnapshot = resumeSnapshot && resumeProfile && activeProfileIds[0] === resumeProfile.id ? resumeSnapshot : null;
+  const resumeProfileIds = Array.isArray(resumeSnapshot?.profileIds) ? resumeSnapshot.profileIds.map(String) : [];
+  const resumeProfiles = resumeProfileIds.map((profileId: string) => pupilProfiles.find((profile) => profile.id === profileId && !profile.archived)).filter(Boolean) as TeacherProfile[];
+  const resumeProfilesAvailable = resumeProfileIds.length === resumeProfiles.length;
+  const visibleResumeSnapshot = resumeSnapshot && resumeProfilesAvailable && sameIds(activeProfileIds, resumeProfileIds) ? resumeSnapshot : null;
+  const resumeLabel = resumeProfileIds.length === 0
+    ? "Continue practice"
+    : resumeProfiles.length === 1
+      ? `Continue ${resumeProfiles[0].displayName}`
+      : `Continue group practice`;
   const selectPupilProfile = (profileId: string | null) => {
-    if (resumeSnapshot && profileId !== resumeProfileId) {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
+    const nextProfileIds = profileId ? [profileId] : [];
+    if (resumeSnapshot && !sameIds(nextProfileIds, resumeProfileIds)) {
+      removeLocalKeys(ACTIVE_SESSION_KEY);
       setResumeSnapshot(null);
     }
     setActiveProfileIds(profileId ? [profileId] : []);
@@ -2571,6 +2745,7 @@ export default function FluencyApp() {
       {screen !== "teacher" && <a className="skip-link" href="#main-content">Skip to main content</a>}
 
       {updateReady && screen !== "practice" && <aside className="update-banner" role="status"><span>A newer version is ready.</span><button type="button" onClick={() => { updateRequestedRef.current = true; updateReady.postMessage({ type: "SKIP_WAITING" }); }}>Update now</button><button type="button" onClick={() => setUpdateReady(null)}>Later</button></aside>}
+      {storageWarning && <aside className="storage-warning" role="alert"><span>{storageWarning}</span><button type="button" onClick={() => setStorageWarning("")}>Dismiss</button></aside>}
 
       {screen === "teacher" && !teacherLocked && (
         <TeacherTools
@@ -2607,7 +2782,7 @@ export default function FluencyApp() {
           onImportEvidence={importEvidence}
           onRestoreBackup={restoreBackup}
           onClearSessionHistory={() => {
-            localStorage.removeItem(ACTIVE_SESSION_KEY);
+            removeLocalKeys(ACTIVE_SESSION_KEY);
             setResumeSnapshot(null);
             setClassroomState((current: any) => ({ ...current, sessions: [], recentSessionIds: [] }));
           }}
@@ -2626,11 +2801,11 @@ export default function FluencyApp() {
       )}
 
       {screen === "setup" && (
-        <section className="setup-screen" id="main-content" tabIndex={-1}>
+        <main className="setup-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
-            <div className="wordmark" aria-label="Year 4 Fluency"><i aria-hidden="true" />Year 4</div>
+            <div className="wordmark"><i aria-hidden="true" />Year 4</div>
             <div className="setup-header-actions">
-              {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
+              {pupilProfiles.some((profile) => !profile.archived) && <button type="button" className="profile-button" aria-label={`Choose pupil profile. Current profile: ${activeProfile?.displayName ?? "Guest"}`} onClick={() => setProfilePickerOpen(true)}><i aria-hidden="true">{activeProfile?.symbol ?? "○"}</i><span>{activeProfile?.displayName ?? "Guest"}</span></button>}
               <FullscreenButton active={fullscreenActive} onToggle={toggleFullscreen} />
               <button type="button" className="header-text-button" onClick={() => setSettingsOpen(true)}>Settings</button>
             </div>
@@ -2642,17 +2817,17 @@ export default function FluencyApp() {
             <span className="setup-intro-copy">Choose the challenge and the support. Then begin.</span>
           </div>
 
-          {visibleResumeSnapshot && resumeProfile && (
+          {visibleResumeSnapshot && (
             <div className="setup-resume-choice">
               <button type="button" className="primary-button resume-primary" onClick={resumePractice}>
-                <span>Continue {resumeProfile.displayName}</span>
+                <span>{resumeLabel}</span>
                 <small>{visibleResumeSnapshot.stats?.attempted ?? 0} questions explored</small>
               </button>
               <span>Or set up a new practice below.</span>
             </div>
           )}
 
-          <div className="setup-controls" aria-label="Practice settings">
+          <div className="setup-controls" role="group" aria-label="Practice settings">
             <AxisControl id="challenge" label="Challenge" description="How tricky should the maths be?" value={challenge} setValue={changeSetupChallenge} anchors={CHALLENGE_ANCHORS} />
             <AxisControl id="support" label="Support" description="How much help should be available?" value={support} setValue={setSupport} anchors={SUPPORT_ANCHORS} />
           </div>
@@ -2673,7 +2848,7 @@ export default function FluencyApp() {
               {modeOpen && (
                 <div className="quick-starts">
                   <span>Or begin with a ready-made practice</span>
-                  <div className="presets" aria-label="Ready-made practice">
+                  <div className="presets" role="group" aria-label="Ready-made practice">
                     {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
                       <button type="button" onClick={() => begin(key)} key={key}>
                         <span>{PRESETS[key].label}</span>
@@ -2690,14 +2865,14 @@ export default function FluencyApp() {
             <span>Quiet practice. No scores or timer pressure.</span>
             <button type="button" className="teacher-entry" onClick={openTeacherTools}>Teacher tools</button>
           </footer>
-        </section>
+        </main>
       )}
 
       {screen === "practice" && question && (
-        <section className="practice-screen" id="main-content" tabIndex={-1}>
+        <main className="practice-screen" id="main-content" tabIndex={-1}>
           <header className="practice-header">
             <button type="button" className="header-text-button header-text-button--finish" onClick={endSession}>Finish</button>
-            <div className="session-pulse" aria-label={`${sessionPrimaryText}${sessionSecondaryText ? `. ${sessionSecondaryText}` : ""}`}>
+            <div className="session-pulse" role="status" aria-live="polite">
               <span>{sessionPrimaryText}</span>
               {sessionSecondaryText && <><i /><span>{sessionSecondaryText}</span></>}
             </div>
@@ -2731,12 +2906,12 @@ export default function FluencyApp() {
           <div className={`practice-workspace scaffold-stage-${scaffoldStage}`}>
             <article
               className="question-panel"
-              aria-labelledby={question.instruction ? "question-instruction" : undefined}
-              aria-label={question.instruction ? undefined : `Question: ${accessibleMath(question.display)}`}
+              aria-labelledby="question-heading"
+              tabIndex={-1}
             >
-              <div className="pupil-sr-only" aria-live="polite" aria-atomic="true">{questionAnnouncement}</div>
+              <h1 className="pupil-sr-only" id="question-heading">{questionAnnouncement}</h1>
               {boardMode && (
-                <div className="question-context" aria-label={`${question.strand}, ${challengeLabel(question.difficulty)}, ${MODES.find((item) => item.id === mode)?.label ?? "Mix"}`}>
+                <div className="question-context">
                   <span>{question.strand}</span>
                   <span aria-hidden="true">·</span>
                   <span>{challengeLabel(question.difficulty)}</span>
@@ -2747,7 +2922,7 @@ export default function FluencyApp() {
               {boardMode && boardInvitation && <div className="board-invitation" role="status">{boardInvitation}</div>}
               {question.instruction && <p id="question-instruction" className="question-instruction"><MathText value={question.instruction} /></p>}
               {shouldShowQuestionDisplay(question) && (
-                <div className={`question-math ${questionMathScale(question.display)}`} aria-label={`${accessibleMath(question.instruction ?? "Calculate")}: ${accessibleMath(question.display)}`}>
+                <div className={`question-math ${questionMathScale(question.display)}`} role="img" aria-label={`${accessibleMath(question.instruction ?? "Calculate")}: ${accessibleMath(question.display)}`}>
                   <MathText value={question.display} />
                 </div>
               )}
@@ -2804,7 +2979,7 @@ export default function FluencyApp() {
 
               {!boardMode && question.type === "choice" && (
                 <>
-                  <div className="choice-grid" aria-label="Choose an answer">
+                  <div className="choice-grid" role="group" aria-label="Choose an answer">
                     {(question.choices ?? []).map((choice: string) => (
                       <button
                         type="button"
@@ -2855,11 +3030,11 @@ export default function FluencyApp() {
               ) : null}
             </article>
           </div>
-        </section>
+        </main>
       )}
 
       {screen === "summary" && (
-        <section className="summary-screen" id="main-content" tabIndex={-1}>
+        <main className="summary-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header">
             <div className="wordmark"><i aria-hidden="true" />Fluency</div>
           </header>
@@ -2867,7 +3042,7 @@ export default function FluencyApp() {
             <p>{classOnlySummary ? "Class practice" : "Practice"}</p>
             <h1>{classOnlySummary ? "Class practice complete." : "Session complete."}</h1>
           </div>
-          <div className={`summary-numbers ${mixedClassAndPupilSummary ? "summary-numbers--mixed" : ""}`} aria-label="Session summary">
+          <div className={`summary-numbers ${mixedClassAndPupilSummary ? "summary-numbers--mixed" : ""}`} role="group" aria-label="Session summary">
             {classOnlySummary ? (
               <div className="summary-numbers__class"><strong>{stats.classQuestions}</strong><span>questions shown</span></div>
             ) : (
@@ -2899,7 +3074,7 @@ export default function FluencyApp() {
             >{classOnlySummary ? "Teach again" : "Practise again"}</button>
             <button type="button" className="text-button" onClick={() => { setActiveSession(null); setScreen("setup"); }}>Finish</button>
           </div>
-        </section>
+        </main>
       )}
 
       {settingsOpen && <SettingsPanel preferences={preferences} setPreferences={setPreferences} onClose={() => setSettingsOpen(false)} onReset={resetPreferences} />}

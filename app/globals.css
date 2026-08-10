@@ -3,14 +3,14 @@
   --ink-soft: #536078;
   --indigo: #24375d;
   --indigo-deep: #152440;
-  --blue-faded: #7488a4;
+  --blue-faded: #536987;
   --blue-pale: #dce4e8;
   --paper: #f4f1e8;
   --paper-light: #fbfaf5;
   --paper-raised: #fffefa;
   --line: #d8d6ce;
-  --line-strong: #b9bcc0;
-  --accent: #b86f42;
+  --line-strong: #7f8999;
+  --accent: #8a4c2f;
   --accent-pale: #ead5c7;
   --good: #456d61;
   --good-pale: #d8e5df;
@@ -62,8 +62,9 @@ a:focus-visible {
 }
 
 button:disabled {
-  cursor: default;
-  opacity: 0.42;
+  cursor: not-allowed;
+  filter: saturate(0.45);
+  opacity: 1;
 }
 
 .fluency-app {
@@ -765,7 +766,7 @@ button:disabled {
 
 .answer-display[data-empty="true"] {
   border-bottom-color: var(--line-strong);
-  color: var(--line-strong);
+  color: var(--ink-soft);
 }
 
 .choice-grid {

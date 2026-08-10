@@ -1,9 +1,10 @@
 const CACHE_PREFIX = "year-4-fluency-";
-const CACHE_NAME = `${CACHE_PREFIX}build-3-v4`;
+const CACHE_NAME = `${CACHE_PREFIX}build-3-v5`;
 const APP_SHELL = ["./", "./index.html", "./assets/app.js", "./assets/index.css", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  const freshShell = APP_SHELL.map((url) => new Request(url, { cache: "reload" }));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(freshShell)));
 });
 
 self.addEventListener("activate", (event) => {
