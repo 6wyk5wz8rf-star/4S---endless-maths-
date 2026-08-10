@@ -47,7 +47,7 @@ for (const challenge of points) {
 if (asJson) {
   console.log(JSON.stringify({ families: QUESTION_FAMILIES.length, structures: QUESTION_STRUCTURE_COUNT, mode, rows, failures }, null, 2));
 } else {
-  console.log(`Year 4 Fluency audit · ${QUESTION_FAMILIES.length} families · ${QUESTION_STRUCTURE_COUNT} structures · ${mode}`);
+  console.log(`4S Arithmetic audit · ${QUESTION_FAMILIES.length} families · ${QUESTION_STRUCTURE_COUNT} structures · ${mode}`);
   for (const row of rows) {
     console.log([
       String(row.challenge).padStart(3),

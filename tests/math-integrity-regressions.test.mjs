@@ -305,3 +305,165 @@ test("error-spotting identifies the first error and models the corrected method"
   }
   assert.deepEqual(seen, new Set(Object.keys(expected)));
 });
+
+test("the reported 14 × 7 + 58 case shows operation order instead of an unrelated number line", () => {
+  const family = questionFamily("chained-calculation");
+  const rolls = [0.09, 0.60, 0.68];
+  let roll = 0;
+  const item = family.generate({ rng: () => rolls[roll++], target: 78, challenge: 78 });
+
+  assert.equal(item.display, "14 × 7 + 58");
+  assert.equal(item.answer, "156");
+  assert.deepEqual(item.values, { a: 14, b: 7, c: 58, product: 98 });
+  assert.equal(item.promptVisual, null);
+  assert.deepEqual(item.scaffold.visual, {
+    kind: "relationship",
+    title: "Do the multiplication first",
+    left: "14 × 7 = 98",
+    right: "98 + 58 = □",
+    connector: "then",
+  });
+  assert.deepEqual(item.scaffold.steps, ["14 × 7 = 98", "98 + 58 = □"]);
+  assert.deepEqual(item.scaffold.model, {
+    title: "Work in operation order",
+    display: "14 × 7 + 58",
+    lines: ["14 × 7 = 98", "98 + 58 = 156"],
+    answer: "156",
+  });
+  assert.equal(validateQuestion(item).valid, true, validateQuestion(item).issues.join(", "));
+});
+
+test("original mixed-calculation families use question-specific scaffold visuals and models", () => {
+  const familyIds = [
+    "estimation",
+    "odd-one-out",
+    "chained-calculation",
+    "sum-and-difference",
+    "missing-operation-chain",
+    "calculation-comparison",
+    "true-false-equation",
+    "find-the-error",
+  ];
+
+  for (const [familyIndex, familyId] of familyIds.entries()) {
+    const family = questionFamily(familyId);
+    const rng = deterministicRng(0x4a1100 + familyIndex * 997);
+    for (let index = 0; index < 500; index += 1) {
+      const item = family.generate({ rng, target: 85, challenge: 85 });
+      const visual = item.scaffold.visual;
+      assert.equal(item.promptVisual, null, `${familyId}: an unsolicited prompt visual was added`);
+      assert.equal(visual.kind, "relationship", `${familyId}: ${JSON.stringify(visual)}`);
+      assert.notEqual(visual.left, "known fact", familyId);
+      assert.notEqual(visual.right, "new fact", familyId);
+      assert.doesNotMatch(JSON.stringify(visual), /Place the numbers|"kind":"number-line"/, familyId);
+      assert.equal(item.scaffold.model.display, item.display, familyId);
+      assert.equal(String(item.scaffold.model.answer), String(item.answer), familyId);
+      const validation = validateQuestion(item);
+      assert.equal(validation.valid, true, `${familyId}: ${validation.issues.join(", ")}`);
+    }
+  }
+});
+
+test("every mixed family avoids the unsafe two-value number-line fallback", () => {
+  const mixedFamilies = QUESTION_FAMILIES.filter((family) => family.strand === "mixed");
+  assert.ok(mixedFamilies.length >= 20);
+
+  for (const [familyIndex, family] of mixedFamilies.entries()) {
+    const target = Math.max(family.min, Math.min(92, Math.round((family.min + family.max) / 2)));
+    const rng = deterministicRng(0x4d1850 + familyIndex * 313);
+    for (let index = 0; index < 500; index += 1) {
+      const item = family.generate({ rng, target, challenge: target });
+      for (const visual of [item.promptVisual, item.scaffold.visual].filter(Boolean)) {
+        assert.doesNotMatch(String(visual.kind), /^(number-line|bead-string)$/, `${family.id}/${item.metadata.structure}`);
+        if (visual.kind !== "relationship") continue;
+        assert.doesNotMatch(String(visual.left), /^(known|new|known fact|new fact)$/i, `${family.id}/${item.metadata.structure}`);
+        assert.doesNotMatch(String(visual.right), /^(known|new|known fact|new fact)$/i, `${family.id}/${item.metadata.structure}`);
+      }
+      const validation = validateQuestion(item);
+      assert.equal(validation.valid, true, `${family.id}/${item.metadata.structure}: ${validation.issues.join(", ")}`);
+    }
+
+    const engine = new FluencyEngine({
+      seed: `mixed-stage-${family.id}`,
+      challenge: target,
+      permittedFamilies: [family.id],
+      connectedSequences: false,
+      fixedSequence: true,
+    });
+    for (let index = 0; index < 20; index += 1) {
+      const item = engine.next();
+      const expectedModelDisplay = /estimat/i.test(`${item.family} ${item.subskill}`) ? `Estimate ${item.display}` : item.display;
+      assert.equal(item.scaffold.model.display, expectedModelDisplay, family.id);
+      assert.equal(String(item.scaffold.model.answer), String(item.answer), family.id);
+    }
+  }
+});
+
+test("forward and reverse operation chains preserve one semantic path through every help stage", () => {
+  const forward = new FluencyEngine({
+    seed: "mixed-chain-stage-contract",
+    challenge: 84,
+    permittedFamilies: ["chained-calculation", "missing-operation-chain"],
+    connectedSequences: false,
+    fixedSequence: true,
+  });
+
+  for (let index = 0; index < 500; index += 1) {
+    const item = forward.next();
+    assert.equal(item.promptVisual, null);
+    assert.equal(item.scaffold.visual.kind, "relationship");
+    assert.equal(item.scaffold.visual.left, item.scaffold.steps[0]);
+    assert.equal(item.scaffold.visual.right, item.scaffold.steps[1]);
+    assert.equal(item.scaffold.visual.connector, "then");
+    assert.equal(item.scaffold.model.display, item.display);
+    assert.equal(String(item.scaffold.model.answer), String(item.answer));
+    assert.doesNotMatch(JSON.stringify(item.scaffold.visual), /number-line|Place the numbers/);
+    const validation = validateQuestion(item);
+    assert.equal(validation.valid, true, `${item.display}: ${validation.issues.join(", ")}`);
+  }
+
+  const legacyWrongVisual = questionFamily("chained-calculation").generate({ rng: deterministicRng(7), target: 78, challenge: 78 });
+  legacyWrongVisual.scaffold.visual = { kind: "number-line", title: "Place the numbers", min: 7, max: 14, points: [14, 7] };
+  const invalid = validateQuestion(legacyWrongVisual);
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.issues.includes("Chained calculation visual must show the two calculation stages in order"));
+});
+
+test("all multi-step missing-number structures have accurate algebra and matching visual and model stages", () => {
+  const family = questionFamily("multi-step-missing-number");
+  const rng = deterministicRng(0x4a1104);
+  const seen = new Set();
+
+  for (let index = 0; index < 4_000; index += 1) {
+    const item = family.generate({ rng, target: 92, challenge: 92 });
+    const compact = item.display.replaceAll(",", "");
+    let expected;
+    let match = compact.match(/^(\d+) × □ \+ (\d+) = (\d+)$/);
+    if (match) expected = (Number(match[3]) - Number(match[2])) / Number(match[1]);
+    match ??= compact.match(/^(\d+) × □ − (\d+) = (\d+)$/);
+    if (match && expected === undefined) expected = (Number(match[3]) + Number(match[2])) / Number(match[1]);
+    match = compact.match(/^\(□ \+ (\d+)\) × (\d+) = (\d+)$/);
+    if (match) expected = Number(match[3]) / Number(match[2]) - Number(match[1]);
+    match = compact.match(/^□ ÷ (\d+) \+ (\d+) = (\d+)$/);
+    if (match) expected = (Number(match[3]) - Number(match[2])) * Number(match[1]);
+    match = compact.match(/^(\d+) − □ − (\d+) = (\d+)$/);
+    if (match) expected = Number(match[1]) - Number(match[2]) - Number(match[3]);
+    match = compact.match(/^(\d+) × □ = (\d+) − (\d+)$/);
+    if (match) expected = (Number(match[2]) - Number(match[3])) / Number(match[1]);
+
+    assert.equal(Number(item.answer), expected, `${item.metadata.structure}: ${item.display}`);
+    assert.equal(item.scaffold.visual.kind, "relationship");
+    assert.equal(item.scaffold.visual.left, item.scaffold.steps[0]);
+    assert.equal(item.scaffold.visual.right, item.scaffold.steps[1]);
+    assert.equal(item.scaffold.visual.connector, "then");
+    assert.match(item.scaffold.visual.right, /□/);
+    assert.equal(item.scaffold.model.display, item.display);
+    assert.equal(String(item.scaffold.model.answer), String(item.answer));
+    assert.doesNotMatch(item.scaffold.model.lines.at(-1), /□/);
+    const validation = validateQuestion(item);
+    assert.equal(validation.valid, true, `${item.metadata.structure}: ${validation.issues.join(", ")}`);
+    seen.add(item.metadata.structure);
+  }
+
+  assert.deepEqual(seen, new Set(family.structures));
+});

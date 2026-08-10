@@ -362,8 +362,8 @@
 @media (max-width: 700px) {
   .teacher-topbar { align-items: start; grid-template-columns: 1fr auto; min-height: 112px; }
   .teacher-brand span { display: none; }
-  .teacher-topbar nav { grid-column: 1 / -1; grid-row: 2; justify-content: start; overflow-x: auto; }
-  .teacher-topbar nav button { flex: 1; padding-inline: 10px; }
+  .teacher-topbar nav { display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-content: stretch; overflow: visible; width: 100%; }
+  .teacher-topbar nav button { font-size: .875rem; min-width: 0; padding-inline: 0; }
   .teacher-topbar__actions { grid-column: 2; grid-row: 1; }
   .teacher-page { padding: 40px 18px 80px; }
   .teacher-page-heading { margin-bottom: 44px; }
@@ -392,6 +392,11 @@
   .teacher-print-controls { border-bottom: 1px solid var(--teacher-line); border-right: 0; }
   .teacher-print-preview { min-height: 500px; padding: 18px; }
   .print-sheet { min-height: 560px; }
+}
+
+@media (max-width: 480px) {
+  .teacher-settings-layout > nav { display: grid; grid-template-columns: 1fr; overflow: visible; }
+  .teacher-settings-layout > nav button { padding-inline: 4px; width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

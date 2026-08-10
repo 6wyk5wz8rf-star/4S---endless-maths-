@@ -1,21 +1,21 @@
 :root {
-  --ink: #17213a;
-  --ink-soft: #536078;
-  --indigo: #24375d;
-  --indigo-deep: #152440;
-  --blue-faded: #536987;
-  --blue-pale: #dce4e8;
-  --paper: #f4f1e8;
-  --paper-light: #fbfaf5;
-  --paper-raised: #fffefa;
-  --line: #d8d6ce;
-  --line-strong: #7f8999;
-  --accent: #8a4c2f;
-  --accent-pale: #ead5c7;
+  --ink: #182238;
+  --ink-soft: #4f5b70;
+  --indigo: #263b68;
+  --indigo-deep: #142443;
+  --blue-faded: #536886;
+  --blue-pale: #e2e7ec;
+  --paper: #f6f2e8;
+  --paper-light: #fcfaf4;
+  --paper-raised: #fffdf8;
+  --line: #d9d6cc;
+  --line-strong: #7d8796;
+  --accent: #a94f23;
+  --accent-pale: #f1d5c1;
   --good: #456d61;
   --good-pale: #d8e5df;
-  --focus: #bc6e3d;
-  --shadow-soft: 0 18px 60px rgba(25, 35, 54, 0.08);
+  --focus: #a94f23;
+  --shadow-soft: 0 18px 60px rgba(20, 36, 67, 0.08);
   --radius-small: 12px;
   --radius-medium: 20px;
   --radius-large: 32px;
@@ -36,7 +36,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), Inter, "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -107,7 +107,7 @@ button:disabled {
 }
 
 .wordmark i::after {
-  background: var(--paper);
+  background: var(--accent);
   border-radius: 50%;
   content: "";
   height: 4px;
@@ -1611,20 +1611,6 @@ button:disabled {
   width: 100%;
 }
 
-.board-mode .practice-header > .header-text-button,
-.board-mode .practice-tools .header-text-button,
-.board-mode .session-pulse,
-.board-mode .control-drawer {
-  opacity: 0.14;
-  transition: opacity 150ms ease;
-}
-
-.board-mode .practice-header > .header-text-button:hover,
-.board-mode .practice-tools .header-text-button:hover,
-.board-mode .control-drawer:hover {
-  opacity: 1;
-}
-
 .board-mode .question-panel {
   max-width: 1100px;
 }
@@ -2082,36 +2068,10 @@ button:disabled {
   .practice-screen {
     padding-top: 22px;
   }
-
-  .practice-header > .header-text-button,
-  .practice-tools,
-  .control-drawer {
-    opacity: 0.18;
-    transition: opacity 150ms ease;
-  }
-
-  .practice-header > .header-text-button:hover,
-  .practice-tools:hover,
-  .control-drawer:hover {
-    opacity: 1;
-  }
 }
 
 :fullscreen .practice-screen {
   padding-top: 22px;
-}
-
-:fullscreen .practice-header > .header-text-button,
-:fullscreen .practice-tools,
-:fullscreen .control-drawer {
-  opacity: 0.18;
-  transition: opacity 150ms ease;
-}
-
-:fullscreen .practice-header > .header-text-button:hover,
-:fullscreen .practice-tools:hover,
-:fullscreen .control-drawer:hover {
-  opacity: 1;
 }
 
 @media print {
@@ -2176,18 +2136,6 @@ button:disabled {
   background: rgba(220, 228, 232, .56);
   border-color: var(--blue-faded);
   color: var(--indigo-deep);
-}
-
-:fullscreen .practice-tools,
-.fluency-app.is-fullscreen .practice-tools {
-  opacity: .78;
-}
-
-:fullscreen .practice-tools:hover,
-:fullscreen .practice-tools:focus-within,
-.fluency-app.is-fullscreen .practice-tools:hover,
-.fluency-app.is-fullscreen .practice-tools:focus-within {
-  opacity: 1;
 }
 
 .fluency-app.app-fullscreen {
@@ -2711,7 +2659,6 @@ button:disabled {
 .jot-sheet header div { flex-wrap: wrap; justify-content: flex-end; }
 .jot-sheet button[aria-pressed="true"] { background: var(--indigo); border-color: var(--indigo); color: white; }
 
-.simplified-density .session-pulse,
 .simplified-density .question-context { opacity: 0; pointer-events: none; }
 
 .larger-targets .question-panel { --pad-size: clamp(78px, 5vw, 92px); }

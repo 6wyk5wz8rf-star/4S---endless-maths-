@@ -84,6 +84,11 @@
   display: none;
 }
 
+.setup-screen:focus,
+.summary-screen:focus {
+  outline: 0;
+}
+
 .setup-screen .setup-header {
   align-items: center;
   display: flex;
@@ -160,7 +165,7 @@
 
 .setup-screen .setup-intro h1 {
   color: var(--indigo-deep);
-  font-size: clamp(3.65rem, 7vw, 5.5rem);
+  font-size: clamp(3.65rem, 5.25vw, 4.6rem);
   font-weight: 520;
   letter-spacing: -0.06em;
   line-height: 0.96;
@@ -280,12 +285,20 @@
 }
 
 .setup-screen .setup-actions > .primary-button {
+  background: var(--accent);
+  border-color: var(--accent);
   border-radius: 18px;
+  color: white;
   font-size: 1.16rem;
   font-weight: 760;
   min-height: 66px;
   min-width: 0;
   width: min(100%, 440px);
+}
+
+.setup-screen .setup-actions > .primary-button:hover {
+  background: #93421d;
+  border-color: #93421d;
 }
 
 .setup-screen .resume-primary {
@@ -311,7 +324,10 @@
 }
 
 .setup-screen .setup-resume-choice > .primary-button {
+  background: var(--accent);
+  border-color: var(--accent);
   border-radius: 18px;
+  color: white;
   font-size: 1.08rem;
   min-height: 66px;
   width: min(100%, 440px);
@@ -568,7 +584,7 @@
   }
 
   .setup-screen .wordmark::after {
-    content: "Y4";
+    content: "4S";
     font-size: 0.9rem;
   }
 
@@ -609,7 +625,7 @@
 
 /* iPad landscape and short classroom displays: preserve scale and allow the
    optional choices to scroll rather than shrinking the primary controls. */
-@media (max-height: 760px) and (min-width: 621px) {
+@media (max-height: 900px) and (min-width: 621px) {
   .setup-screen {
     padding-block: 16px 20px;
   }
@@ -725,541 +741,6 @@
   }
 }
 
-/*
- * Pupil practice · one thought at a time
- *
- * These selectors are intentionally scoped and authoritative. They replace
- * the legacy desktop/short-screen hybrids without making the mathematics or
- * controls smaller to fit. A short viewport scrolls instead.
- */
-
-.practice-screen {
-  display: flex;
-  flex-direction: column;
-  min-height: 100svh;
-  overflow-y: auto;
-  padding: 12px clamp(18px, 4vw, 60px) clamp(28px, 4vw, 52px);
-}
-
-.practice-screen .practice-header {
-  align-items: center;
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
-  display: grid;
-  flex: 0 0 auto;
-  gap: 16px;
-  grid-template-columns: minmax(92px, 1fr) auto minmax(250px, 1fr);
-  margin: 0 auto;
-  max-width: 1480px;
-  min-height: 66px;
-  padding: 5px 0;
-  position: sticky;
-  top: 0;
-  width: 100%;
-  z-index: 40;
-}
-
-.practice-screen .header-text-button,
-.practice-screen .board-button,
-.practice-screen .fullscreen-button {
-  font-size: 0.94rem;
-  min-height: 48px;
-}
-
-.practice-screen .fullscreen-button {
-  flex: 0 0 auto;
-  min-width: 122px;
-}
-
-.practice-screen .fullscreen-button span {
-  display: inline;
-  font-size: 0.92rem;
-}
-
-.practice-screen .fullscreen-button span::after,
-.practice-screen .practice-tools .header-text-button::after {
-  content: none;
-}
-
-.practice-screen .practice-tools .header-text-button {
-  font-size: 0.92rem;
-  min-width: 72px;
-  padding-inline: 12px;
-}
-
-.practice-screen .practice-tools {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  opacity: 1;
-}
-
-.practice-screen .practice-tools .board-button {
-  border: 0;
-  color: var(--ink-soft);
-  min-width: 130px;
-  padding-inline: 12px;
-}
-
-.practice-screen .session-pulse {
-  font-size: 0.92rem;
-  justify-self: center;
-}
-
-.practice-screen .control-drawer {
-  margin: 10px auto 0;
-  opacity: 1;
-  position: static;
-  transform: none;
-  width: min(calc(100vw - 36px), 820px);
-}
-
-.practice-screen .practice-header > .header-text-button,
-:fullscreen .practice-screen .practice-tools,
-:fullscreen .practice-screen .control-drawer,
-.fluency-app.is-fullscreen .practice-screen .practice-tools,
-.fluency-app.is-fullscreen .practice-screen .control-drawer {
-  opacity: 1;
-}
-
-.practice-screen .control-drawer__tab {
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
-  color: var(--ink-soft);
-  font-size: 0.96rem;
-  font-weight: 700;
-  gap: 10px;
-  letter-spacing: 0;
-  min-height: 48px;
-  padding-inline: 16px;
-  text-transform: none;
-}
-
-.practice-screen .control-drawer__tab:hover,
-.practice-screen .control-drawer__tab:focus-visible {
-  background: rgba(35, 54, 91, 0.055);
-  color: var(--indigo-deep);
-}
-
-.practice-screen .control-drawer__tab i {
-  align-items: center;
-  display: inline-flex;
-  font-size: 1.18rem;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.practice-screen .control-drawer__body {
-  border-radius: 18px;
-  box-shadow: 0 16px 44px rgba(35, 54, 91, 0.08);
-  gap: 26px;
-  padding: 24px;
-}
-
-.practice-screen .control-drawer__notice {
-  color: var(--ink-soft);
-  font-size: 0.98rem;
-  grid-column: 1 / -1;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.practice-screen .practice-teacher-option {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  display: flex;
-  gap: 18px;
-  grid-column: 1 / -1;
-  justify-content: space-between;
-  padding-top: 20px;
-}
-
-.practice-screen .practice-teacher-option > div {
-  display: grid;
-  gap: 4px;
-}
-
-.practice-screen .practice-teacher-option strong {
-  color: var(--indigo-deep);
-  font-size: 0.98rem;
-}
-
-.practice-screen .practice-teacher-option span {
-  color: var(--ink-soft);
-  font-size: 0.9rem;
-}
-
-.practice-screen .practice-teacher-option button {
-  background: transparent;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  color: var(--indigo-deep);
-  cursor: pointer;
-  flex: 0 0 auto;
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 700;
-  min-height: 48px;
-  padding-inline: 18px;
-}
-
-.practice-screen .practice-workspace,
-.practice-screen .practice-workspace:has(.scaffold) {
-  align-items: center;
-  display: flex;
-  flex: 1 0 auto;
-  justify-content: center;
-  min-height: 0;
-  overflow: visible;
-  padding: clamp(28px, 5vh, 58px) 0 12px;
-  width: 100%;
-}
-
-.practice-screen .question-panel,
-.fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-  --pad-size: clamp(84px, 5.5vw, 98px);
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  grid-template-columns: none;
-  justify-content: center;
-  max-width: 1120px;
-  min-height: 0;
-  padding: 0;
-  width: 100%;
-}
-
-.practice-screen .question-context {
-  font-size: 0.92rem;
-  letter-spacing: 0.08em;
-  margin-bottom: clamp(20px, 3vh, 34px);
-}
-
-.practice-screen .question-instruction {
-  color: var(--ink-soft);
-  font-size: clamp(1.25rem, 1.75vw, 1.58rem);
-  font-weight: 580;
-  line-height: 1.38;
-  margin: 0 0 18px;
-  max-width: 880px;
-}
-
-.practice-screen .question-math {
-  font-size: clamp(6.25rem, 12.5vw, 13rem);
-  font-weight: 520;
-  letter-spacing: -0.05em;
-  line-height: 1;
-  max-width: min(100%, 1240px);
-  min-height: 1.06em;
-  overflow-wrap: normal;
-  padding-inline: 10px;
-  text-wrap: balance;
-}
-
-.practice-screen .question-math--medium {
-  font-size: clamp(5rem, 9.6vw, 10rem);
-}
-
-.practice-screen .question-math--long {
-  font-size: clamp(3.7rem, 7.2vw, 7.6rem);
-}
-
-.practice-screen .question-math--prose {
-  font-size: clamp(2.6rem, 4.8vw, 5rem);
-  line-height: 1.12;
-  max-width: 1000px;
-}
-
-.practice-screen .prompt-visual {
-  margin-top: clamp(22px, 3vh, 34px);
-  max-width: 760px;
-  width: min(96%, 760px);
-}
-
-.practice-screen .answer-display {
-  font-size: clamp(4.25rem, 7.2vw, 7.25rem);
-  margin-top: clamp(24px, 3.5vh, 38px);
-  min-height: 106px;
-  min-width: clamp(260px, 32vw, 390px);
-  padding: 0 22px 10px;
-}
-
-.practice-screen .answer-display[data-empty="true"] span {
-  color: var(--ink-soft);
-}
-
-.practice-screen .response-dock {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-areas:
-    "answer"
-    "feedback"
-    "pad"
-    "actions"
-    "secondary";
-  justify-items: center;
-  margin-top: clamp(22px, 3vh, 34px);
-  max-width: 760px;
-  padding-top: clamp(20px, 3vh, 30px);
-  width: 100%;
-}
-
-.practice-screen .response-dock > .answer-display {
-  grid-area: answer;
-  margin-top: 0;
-}
-
-.practice-screen .response-dock > .feedback-line {
-  grid-area: feedback;
-}
-
-.practice-screen .response-dock > .number-pad {
-  grid-area: pad;
-}
-
-.practice-screen .response-dock > .question-actions {
-  grid-area: actions;
-}
-
-.practice-screen .response-dock > .question-secondary-actions {
-  grid-area: secondary;
-}
-
-.practice-screen .fraction--entry {
-  min-width: 0.9em;
-}
-
-.practice-screen .fraction--entry > span {
-  min-height: 0.82em;
-  min-width: 0.72em;
-  text-align: center;
-}
-
-.practice-screen .choice-grid {
-  gap: 14px;
-  margin-top: clamp(26px, 4vh, 42px);
-  max-width: 840px;
-  width: min(100%, 840px);
-}
-
-.practice-screen .choice-grid button {
-  border-radius: 16px;
-  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
-  min-height: 96px;
-  padding: 18px 22px;
-}
-
-.practice-screen .feedback-line {
-  font-size: 1.08rem;
-  min-height: 48px;
-  padding-block: 9px;
-}
-
-.practice-screen .number-pad {
-  align-self: center;
-  gap: 11px;
-  grid-template-columns: repeat(3, var(--pad-size));
-}
-
-.fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) .number-pad {
-  align-self: center;
-}
-
-.fluency-app.larger-text .practice-screen .question-math {
-  font-size: clamp(7rem, 14vw, 15rem);
-}
-
-.fluency-app.larger-text .practice-screen .question-math--medium {
-  font-size: clamp(5.8rem, 11vw, 11.5rem);
-}
-
-.fluency-app.larger-text .practice-screen .question-math--long {
-  font-size: clamp(4.25rem, 8.2vw, 8.6rem);
-}
-
-.fluency-app.larger-text .practice-screen .question-math--prose {
-  font-size: clamp(3rem, 5.5vw, 5.8rem);
-}
-
-.fluency-app.larger-text .practice-screen .number-pad button {
-  font-size: clamp(1.95rem, 2.8vw, 2.35rem);
-}
-
-.fluency-app.larger-targets .practice-screen .question-panel,
-.fluency-app.larger-targets:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-  --pad-size: clamp(94px, 6.5vw, 110px);
-}
-
-.practice-screen .number-pad button {
-  border-radius: 17px;
-  box-shadow: none;
-  font-size: clamp(1.72rem, 2.4vw, 2.05rem);
-  height: var(--pad-size);
-}
-
-.practice-screen .number-pad__zero--wide {
-  grid-column: span 2;
-}
-
-.practice-screen .question-actions {
-  gap: 12px;
-  grid-template-columns: 1fr 1.5fr;
-  margin-top: 20px;
-  width: calc(var(--pad-size) * 3 + 22px);
-}
-
-.practice-screen .hint-button,
-.practice-screen .check-button {
-  font-size: 1.02rem;
-  min-height: 60px;
-  padding-inline: 20px;
-}
-
-.practice-screen .check-button:disabled {
-  background: var(--paper-light);
-  border-color: var(--line-strong);
-  color: var(--ink-soft);
-  opacity: 1;
-}
-
-.practice-screen .check-button {
-  font-weight: 760;
-}
-
-.practice-screen .question-secondary-actions {
-  gap: 20px;
-  min-height: 48px;
-  padding-top: 8px;
-}
-
-.practice-screen .question-secondary-actions button {
-  font-size: 0.95rem;
-  min-height: 48px;
-  min-width: 44px;
-  padding-inline: 10px;
-}
-
-/* The requested support appears beside the thought it supports, before the
-   answer controls. Only the currently useful layer is visible. */
-.practice-screen .question-panel > .scaffold {
-  align-self: center;
-  border: 0;
-  display: block;
-  grid-column: auto;
-  grid-row: auto;
-  justify-self: auto;
-  margin: clamp(18px, 2.5vh, 28px) auto 0;
-  max-height: none;
-  max-width: 780px;
-  order: initial;
-  overflow: visible;
-  padding: 0;
-  position: static !important;
-  transform: none !important;
-  width: min(96%, 780px);
-}
-
-.practice-screen .question-panel > .scaffold > div {
-  background: rgba(255, 254, 250, 0.72);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--blue-faded);
-  border-radius: 16px;
-  padding: 18px 22px;
-}
-
-.practice-screen .scaffold__heading {
-  align-items: center;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.practice-screen .scaffold__heading > span {
-  color: var(--blue-faded);
-  font-size: 0.88rem;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.practice-screen .scaffold__heading > button {
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: var(--ink-soft);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.9rem;
-  min-height: 44px;
-  padding-inline: 12px;
-}
-
-.practice-screen .scaffold__heading > button:hover,
-.practice-screen .scaffold__heading > button:focus-visible {
-  background: rgba(35, 54, 91, 0.055);
-  color: var(--indigo-deep);
-}
-
-.practice-screen .scaffold > div > span,
-.practice-screen .scaffold__model > span {
-  font-size: 0.9rem;
-  letter-spacing: 0.08em;
-  margin-bottom: 10px;
-}
-
-.practice-screen .scaffold p,
-.practice-screen .scaffold__steps li {
-  font-size: clamp(1.12rem, 1.5vw, 1.28rem);
-  line-height: 1.5;
-}
-
-.practice-screen .scaffold__caption {
-  font-size: 1rem !important;
-  margin-bottom: 14px;
-}
-
-.practice-screen .scaffold__steps ol {
-  margin-block: 0;
-  padding-left: 28px;
-}
-
-.practice-screen .scaffold__model {
-  border-left-color: var(--accent) !important;
-}
-
-.practice-screen .scaffold__model strong {
-  font-size: clamp(2.15rem, 3.2vw, 3rem);
-}
-
-.practice-screen .scaffold__model b {
-  font-size: 1.35rem;
-}
-
-.practice-screen .scaffold__model small {
-  display: block;
-  font-size: 0.95rem;
-  margin-top: 14px;
-}
-
-.practice-screen .another-way {
-  margin-top: 22px;
-  max-width: 780px;
-  padding: 14px 20px;
-  width: min(96%, 780px);
-}
-
-.practice-screen .another-way > span {
-  font-size: 0.9rem;
-}
-
-.practice-screen .another-way p {
-  font-size: 1.12rem;
-}
 
 /* Mathematical models stay abstract, but not miniature. */
 .practice-screen .visual-model {
@@ -1565,6 +1046,61 @@
   font-size: clamp(3.6rem, 7vw, 7.5rem);
 }
 
+.board-mode .practice-screen .board-choice-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: clamp(20px, 3vh, 32px) auto 0;
+  max-width: 900px;
+  width: min(100%, 900px);
+}
+
+.board-mode .practice-screen .board-choice {
+  align-items: center;
+  background: var(--paper-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  color: var(--indigo-deep);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  min-height: 76px;
+  padding: 11px 18px;
+  text-align: left;
+}
+
+.board-mode .practice-screen .board-choice > span[aria-hidden="true"] {
+  align-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 780;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.board-mode .practice-screen .board-choice > strong {
+  font-size: clamp(1.45rem, 2.6vw, 2.25rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  min-width: 0;
+  text-align: center;
+}
+
+.board-mode .practice-screen .board-choice.is-answer {
+  background: var(--accent-pale);
+  border-color: var(--accent);
+  box-shadow: inset 5px 0 0 var(--accent);
+}
+
+.board-mode .practice-screen .board-choice.is-answer > span[aria-hidden="true"] {
+  background: var(--accent);
+  color: white;
+}
+
 .practice-screen .board-controls {
   align-items: center;
   display: flex;
@@ -1749,165 +1285,7 @@
   padding: clamp(32px, 5vh, 54px) 0 0;
 }
 
-@media (max-width: 820px) {
-  .practice-screen {
-    padding: 16px clamp(16px, 4vw, 30px) 30px;
-  }
-
-  .practice-screen .practice-header {
-    gap: 8px;
-    grid-template-columns: auto 1fr auto;
-  }
-
-  .practice-screen .practice-tools {
-    gap: 3px;
-  }
-
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 48px;
-  }
-
-  .practice-screen .question-panel,
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: clamp(76px, 10vw, 88px);
-  }
-
-  .practice-screen .question-math {
-    font-size: clamp(5.5rem, 15vw, 9rem);
-  }
-
-  .practice-screen .question-math--medium {
-    font-size: clamp(4.5rem, 12vw, 7rem);
-  }
-
-  .practice-screen .question-math--long {
-    font-size: clamp(3.35rem, 9vw, 5.4rem);
-  }
-
-  .practice-screen .question-math--prose {
-    font-size: clamp(2.35rem, 6.8vw, 3.8rem);
-  }
-
-  .practice-screen .choice-grid {
-    grid-template-columns: 1fr;
-    max-width: 620px;
-  }
-
-  .practice-screen .choice-grid button {
-    min-height: 76px;
-  }
-}
-
 @media (max-width: 540px) {
-  .practice-screen .board-more__panel {
-    bottom: max(16px, env(safe-area-inset-bottom));
-    left: 50%;
-    max-height: min(72svh, 520px);
-    position: fixed;
-    transform: translateX(-50%);
-    width: min(calc(100vw - 32px), 430px);
-  }
-
-  .practice-screen .session-pulse {
-    display: flex;
-    font-size: 0.875rem;
-  }
-
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 38px;
-  }
-
-  .practice-screen .question-panel,
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: clamp(66px, 20vw, 76px);
-  }
-
-  .fluency-app.larger-targets .practice-screen .question-panel,
-  .fluency-app.larger-targets:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: clamp(72px, 22vw, 84px);
-  }
-
-  .fluency-app.larger-text .practice-screen .question-math {
-    font-size: clamp(5.25rem, 25vw, 8rem);
-  }
-
-  .fluency-app.larger-text .practice-screen .question-math--medium {
-    font-size: clamp(4.25rem, 20vw, 6.5rem);
-  }
-
-  .fluency-app.larger-text .practice-screen .question-math--long {
-    font-size: clamp(3.2rem, 15vw, 4.8rem);
-  }
-
-  .fluency-app.larger-text .practice-screen .question-math--prose {
-    font-size: clamp(2.25rem, 10vw, 3.4rem);
-  }
-
-  .practice-screen .question-instruction {
-    font-size: 1.08rem;
-  }
-
-  .practice-screen .question-math {
-    font-size: clamp(4.6rem, 22vw, 7rem);
-  }
-
-  .practice-screen .question-math--medium {
-    font-size: clamp(3.8rem, 18vw, 5.8rem);
-  }
-
-  .practice-screen .question-math--long {
-    font-size: clamp(2.8rem, 13vw, 4.2rem);
-  }
-
-  .practice-screen .question-math--prose {
-    font-size: clamp(2rem, 9vw, 3rem);
-  }
-
-  .practice-screen .answer-display {
-    font-size: clamp(3.7rem, 17vw, 5.2rem);
-    min-height: 86px;
-    min-width: min(78vw, 290px);
-  }
-
-  .practice-screen .number-pad {
-    gap: 8px;
-  }
-
-  .practice-screen .question-actions {
-    gap: 9px;
-    width: calc(var(--pad-size) * 3 + 16px);
-  }
-
-  .practice-screen .hint-button,
-  .practice-screen .check-button {
-    min-height: 54px;
-  }
-
-  .practice-screen .question-panel > .scaffold > div {
-    padding: 17px 18px;
-  }
-
-  .board-mode .practice-screen .array-model {
-    gap: 8px;
-    grid-template-columns: repeat(var(--array-columns), 18px);
-  }
-
-  .board-mode .practice-screen .array-model i,
-  .board-mode .practice-screen .counter-groups i {
-    height: 16px;
-    width: 16px;
-  }
-
-  .board-mode .practice-screen .relationship-model {
-    gap: 14px;
-  }
-
-  .board-mode .practice-screen .relationship-model > i {
-    min-width: 80px;
-  }
-
   .summary-screen {
     padding-inline: 18px;
   }
@@ -1946,26 +1324,6 @@
   }
 }
 
-@media (max-width: 430px) {
-  .practice-screen .practice-header {
-    grid-template-columns: auto 1fr;
-    row-gap: 4px;
-  }
-
-  .practice-screen .practice-tools {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .practice-screen .session-pulse {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: center;
-    min-height: 28px;
-  }
-}
-
 @media (max-width: 350px) {
   .board-mode .practice-screen .array-model {
     gap: 6px;
@@ -1995,148 +1353,6 @@
 
   .summary-screen .summary-numbers--mixed div:nth-child(5) {
     grid-column: auto;
-  }
-}
-
-/* iPad landscape and short classroom displays retain the same reading order.
-   They scroll; they never turn the answer area into a cramped split layout. */
-@media (max-height: 760px) and (min-width: 621px) {
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 38px;
-  }
-
-  .practice-screen .question-panel,
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: 82px;
-    column-gap: 0;
-    display: flex;
-  }
-
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) .number-pad {
-    align-self: center;
-  }
-
-  .practice-screen .question-math {
-    font-size: clamp(6.25rem, 13vw, 10rem);
-  }
-
-  .practice-screen .question-math--medium {
-    font-size: clamp(5rem, 10vw, 7.8rem);
-  }
-
-  .practice-screen .question-math--long {
-    font-size: clamp(3.7rem, 7.4vw, 5.8rem);
-  }
-
-  .practice-screen .question-math--prose {
-    font-size: clamp(2.5rem, 5vw, 3.9rem);
-  }
-}
-
-/* Short, wide classroom screens keep the question and the complete response
-   instrument visible together. The controls remain touch-sized; the layout,
-   rather than the mathematics, does the compacting. */
-@media (orientation: landscape) and (min-width: 800px) and (max-height: 820px) {
-  .practice-screen {
-    padding-block: 12px 24px;
-  }
-
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 22px;
-  }
-
-  .practice-screen .question-panel,
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: 72px;
-  }
-
-  .practice-screen .question-instruction {
-    margin-bottom: 10px;
-  }
-
-  .practice-screen .question-math {
-    font-size: clamp(6rem, 11vw, 9rem);
-  }
-
-  .practice-screen .question-math--medium {
-    font-size: clamp(4.9rem, 8.6vw, 7.2rem);
-  }
-
-  .practice-screen .question-math--long {
-    font-size: clamp(3.65rem, 6.5vw, 5.3rem);
-  }
-
-  .practice-screen .question-math--prose {
-    font-size: clamp(2.45rem, 4.4vw, 3.7rem);
-  }
-
-  .practice-screen .prompt-visual,
-  .practice-screen .question-panel > .scaffold,
-  .practice-screen .another-way {
-    margin-top: 14px;
-  }
-
-  .practice-screen .question-panel > .scaffold > div {
-    padding: 14px 18px;
-  }
-
-  .practice-screen .scaffold p,
-  .practice-screen .scaffold__steps li {
-    font-size: 1rem;
-    line-height: 1.38;
-  }
-
-  .practice-screen .response-dock {
-    column-gap: clamp(34px, 5vw, 64px);
-    grid-template-areas:
-      "answer pad"
-      "feedback pad"
-      "actions pad"
-      "secondary pad";
-    grid-template-columns: minmax(290px, 370px) auto;
-    grid-template-rows: auto auto auto 1fr;
-    margin-top: 20px;
-    max-width: 780px;
-  }
-
-  .practice-screen .response-dock .answer-display {
-    font-size: clamp(3.8rem, 6vw, 5.2rem);
-    margin-top: 0;
-    min-height: 86px;
-    min-width: 280px;
-  }
-
-  .practice-screen .response-dock .feedback-line {
-    min-height: 42px;
-    padding-block: 5px;
-  }
-
-  .practice-screen .response-dock .question-actions {
-    margin-top: 8px;
-    width: 100%;
-  }
-
-  .practice-screen .response-dock .hint-button,
-  .practice-screen .response-dock .check-button {
-    min-height: 54px;
-  }
-
-  .practice-screen .response-dock .question-secondary-actions {
-    padding-top: 2px;
-  }
-}
-
-@media (orientation: landscape) and (min-width: 800px) and (max-height: 690px) {
-  .practice-screen .question-panel,
-  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
-    --pad-size: 68px;
-  }
-
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 16px;
   }
 }
 
@@ -2193,78 +1409,914 @@
   }
 }
 
-@media (max-width: 620px) {
-  .practice-screen {
-    padding: 8px 14px max(28px, env(safe-area-inset-bottom));
-  }
-
-  .practice-screen .practice-header {
-    grid-template-columns: auto 1fr;
-    min-height: 64px;
-    row-gap: 4px;
-  }
-
-  .practice-screen .practice-tools {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .practice-screen .session-pulse {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-height: 28px;
-  }
-
-  .practice-screen .fullscreen-button {
-    min-width: 116px;
-    padding-inline: 11px;
-  }
-
-  .practice-screen .practice-tools .header-text-button {
-    min-width: 68px;
-    padding-inline: 8px;
-  }
-
-  .practice-screen .control-drawer__body {
-    gap: 22px;
-    grid-template-columns: 1fr;
-    padding: 20px;
-  }
-
-  .practice-screen .practice-workspace,
-  .practice-screen .practice-workspace:has(.scaffold) {
-    padding-top: 24px;
-  }
-
-  .practice-screen .question-panel > .scaffold {
-    width: 100%;
-  }
-
-  .practice-screen .question-panel > .scaffold > div {
-    padding: 16px 17px;
-  }
-
-  .practice-screen .response-dock {
-    margin-top: 20px;
-    padding-top: 18px;
-  }
-
-  .practice-screen .practice-teacher-option {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .practice-screen .practice-teacher-option button {
-    width: 100%;
-  }
-}
-
 @media (max-width: 390px) {
   .setup-screen .fullscreen-button {
     min-width: 108px;
     padding-inline: 9px;
   }
 
+  .setup-screen .fullscreen-button span {
+    font-size: 0.86rem;
+  }
+}
+
+/*
+ * 4S Arithmetic · pupil practice surface
+ *
+ * One deliberate composition replaces the old tall stack: the mathematical
+ * thought occupies the reading side and the response instrument occupies the
+ * action side on classroom landscape displays. Portrait and phone layouts
+ * preserve the same order in normal flow. Orange is reserved for the next
+ * action, active response and the line that connects support to the question.
+ */
+
+.practice-screen {
+  background: var(--paper);
+  color: var(--ink);
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px clamp(18px, 3vw, 46px) max(12px, env(safe-area-inset-bottom));
+  position: relative;
+}
+
+.practice-screen .practice-header {
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  grid-template-columns: minmax(86px, 1fr) auto minmax(250px, 1fr);
+  min-height: 56px;
+  padding: 0;
+  position: relative;
+  top: auto;
+}
+
+.practice-screen .practice-header > .header-text-button {
+  color: var(--indigo-deep);
+  font-size: 0.92rem;
+  justify-self: start;
+  min-height: 44px;
+  padding-inline: 10px;
+}
+
+.practice-screen .practice-header > .header-text-button::before {
+  background: var(--accent);
+  content: "";
+  height: 3px;
+  margin-right: 9px;
+  width: 18px;
+}
+
+.practice-screen .session-pulse {
+  color: var(--blue-faded);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.practice-screen .practice-tools {
+  gap: 4px;
+}
+
+.practice-screen .header-text-button,
+.practice-screen .board-button,
+.practice-screen .fullscreen-button {
+  border-radius: 10px;
+  min-height: 44px;
+}
+
+.practice-screen .fullscreen-button {
+  background: transparent;
+  border-color: transparent;
+  min-width: 118px;
+}
+
+.practice-screen .fullscreen-button span {
+  display: inline;
+  font-size: 0.9rem;
+}
+
+.practice-screen .fullscreen-button span::after,
+.practice-screen .practice-tools .header-text-button::after {
+  content: none;
+}
+
+.practice-screen .fullscreen-button:hover,
+.practice-screen .fullscreen-button[aria-pressed="true"],
+.practice-screen .practice-tools .header-text-button:hover {
+  background: var(--paper-raised);
+  border-color: var(--line);
+}
+
+.practice-screen .control-drawer {
+  left: 50%;
+  margin: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 70px;
+  transform: translateX(-50%);
+  width: min(calc(100vw - 32px), 760px);
+  z-index: 45;
+}
+
+.practice-screen .control-drawer__tab,
+.practice-screen .control-drawer__body {
+  pointer-events: auto;
+}
+
+.practice-screen .control-drawer__tab {
+  background: var(--paper);
+  border: 0;
+  border-radius: 8px;
+  color: var(--indigo);
+  font-size: 0.9rem;
+  min-height: 44px;
+  padding-inline: 14px;
+  text-transform: none;
+}
+
+.practice-screen .control-drawer__tab i {
+  color: var(--accent);
+  font-size: 1.25rem;
+}
+
+.practice-screen .control-drawer__body {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(20, 36, 67, 0.12);
+  margin-top: 6px;
+}
+
+.practice-screen .control-drawer__notice {
+  color: var(--ink-soft);
+  font-size: 0.96rem;
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.practice-screen .practice-teacher-option {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding-top: 18px;
+}
+
+.practice-screen .practice-teacher-option > div {
+  display: grid;
+  gap: 4px;
+}
+
+.practice-screen .practice-teacher-option strong {
+  color: var(--indigo-deep);
+  font-size: 0.96rem;
+}
+
+.practice-screen .practice-teacher-option span {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.practice-screen .practice-teacher-option button {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--indigo-deep);
+  flex: 0 0 auto;
+  font-weight: 700;
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+.practice-screen .practice-workspace,
+.practice-screen .practice-workspace:has(.scaffold) {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 48px 0 0;
+}
+
+.practice-screen .question-panel,
+.fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+  --key-size: clamp(56px, 6.8vh, 66px);
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 1180px;
+  min-height: 0;
+  padding: 0;
+  width: 100%;
+}
+
+/* Programmatic focus moves the reading cursor here. It is not an interactive
+   control, so the browser's heavy black focus rectangle is misleading. */
+.practice-screen .question-panel:focus {
+  outline: 0;
+}
+
+.practice-screen .question-content {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.practice-screen .question-instruction {
+  color: var(--indigo);
+  font-size: clamp(1.05rem, 1.55vw, 1.32rem);
+  font-weight: 680;
+  line-height: 1.35;
+  margin: 0 0 10px;
+  max-width: 720px;
+}
+
+.practice-screen .question-math {
+  color: var(--indigo-deep);
+  font-size: clamp(4.25rem, 8vw, 7.5rem);
+  font-weight: 590;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  max-width: 100%;
+  min-height: 1em;
+  overflow-wrap: anywhere;
+  padding: 0;
+}
+
+.practice-screen .question-math--medium {
+  font-size: clamp(3.6rem, 6.8vw, 6.4rem);
+}
+
+.practice-screen .question-math--long {
+  font-size: clamp(2.7rem, 5.2vw, 4.8rem);
+  white-space: normal;
+}
+
+.practice-screen .question-math--prose {
+  font-size: clamp(2rem, 3.7vw, 3.4rem);
+  line-height: 1.12;
+  max-width: 780px;
+}
+
+.fluency-app.larger-text .practice-screen .question-instruction {
+  font-size: clamp(1.18rem, 1.8vw, 1.5rem);
+}
+
+.fluency-app.larger-text .practice-screen .question-math {
+  font-size: clamp(4.8rem, 8.8vw, 8.2rem);
+}
+
+.fluency-app.larger-text .practice-screen .question-math--medium {
+  font-size: clamp(4rem, 7.4vw, 7rem);
+}
+
+.fluency-app.larger-text .practice-screen .question-math--long {
+  font-size: clamp(3rem, 5.7vw, 5.25rem);
+}
+
+.fluency-app.larger-text .practice-screen .question-math--prose {
+  font-size: clamp(2.2rem, 4.15vw, 3.75rem);
+}
+
+.fluency-app.larger-targets .practice-screen .question-panel,
+.fluency-app.larger-targets:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+  --key-size: clamp(62px, 7.5vh, 72px);
+}
+
+.practice-screen .prompt-visual {
+  background: color-mix(in srgb, var(--paper-raised) 74%, transparent);
+  border-block: 1px solid var(--line);
+  margin-top: 16px;
+  max-width: 620px;
+  padding: 13px clamp(14px, 2vw, 24px);
+  width: min(100%, 620px);
+}
+
+.practice-screen .prompt-visual .number-line__marker b,
+.practice-screen .prompt-visual .array-model i,
+.practice-screen .prompt-visual .counter-groups i,
+.practice-screen .prompt-visual .ten-frame i.is-filled,
+.practice-screen .prompt-visual .hundred-grid i.is-filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.practice-screen .prompt-visual .fraction-strip .is-filled,
+.practice-screen .prompt-visual .bar-model span.is-filled {
+  background: var(--accent-pale);
+  border-color: var(--accent);
+}
+
+.practice-screen .number-line[aria-label*="missing start value"] .number-line__ends > span:first-child,
+.practice-screen .number-line[aria-label*="missing end value"] .number-line__ends > span:last-child {
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.practice-screen .response-dock {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-areas:
+    "answer"
+    "feedback"
+    "pad"
+    "actions"
+    "secondary";
+  justify-items: center;
+  margin-top: 18px;
+  max-width: 430px;
+  padding-top: 14px;
+  width: 100%;
+}
+
+.practice-screen .response-dock > .answer-display {
+  grid-area: answer;
+}
+
+.practice-screen .response-dock > .feedback-line {
+  grid-area: feedback;
+}
+
+.practice-screen .response-dock > .number-pad {
+  grid-area: pad;
+}
+
+.practice-screen .response-dock > .question-actions {
+  grid-area: actions;
+}
+
+.practice-screen .response-dock > .question-secondary-actions {
+  grid-area: secondary;
+}
+
+.practice-screen .answer-display,
+.practice-screen .response-dock > .answer-display {
+  border-bottom: 3px solid var(--line-strong);
+  color: var(--indigo-deep);
+  font-size: clamp(3.1rem, 5vw, 4.5rem);
+  margin: 0;
+  min-height: 68px;
+  min-width: 230px;
+  padding: 0 18px 6px;
+}
+
+.practice-screen .answer-display:not([data-empty="true"]) {
+  border-bottom-color: var(--accent);
+}
+
+.answer-display[data-empty="true"] span {
+  color: var(--ink-soft);
+  font-weight: 520;
+}
+
+.practice-screen .feedback-line {
+  font-size: 0.96rem;
+  line-height: 1.3;
+  min-height: 34px;
+  padding-block: 5px;
+}
+
+.practice-screen .number-pad {
+  gap: 7px;
+  grid-template-columns: repeat(3, var(--key-size));
+}
+
+.practice-screen .number-pad button {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: none;
+  color: var(--indigo-deep);
+  font-size: clamp(1.35rem, 2vw, 1.65rem);
+  font-weight: 720;
+  height: var(--key-size);
+  min-width: var(--key-size);
+}
+
+.practice-screen .number-pad button:hover {
+  background: var(--accent-pale);
+  border-color: var(--accent);
+}
+
+.practice-screen .number-pad button:active {
+  background: var(--accent);
+  color: white;
+  transform: translateY(1px);
+}
+
+.practice-screen .number-pad .number-pad__utility {
+  color: var(--ink-soft);
+  font-size: 1.3rem;
+}
+
+.practice-screen .question-actions {
+  gap: 8px;
+  grid-template-columns: 1fr 1.35fr;
+  margin-top: 10px;
+  width: calc(var(--key-size) * 3 + 14px);
+}
+
+.practice-screen .hint-button,
+.practice-screen .check-button {
+  border-radius: 10px;
+  font-size: 0.96rem;
+  font-weight: 760;
+  min-height: 48px;
+  padding-inline: 14px;
+}
+
+.practice-screen .hint-button {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--indigo);
+}
+
+.practice-screen .check-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.practice-screen .check-button:hover {
+  background: #93421d;
+  border-color: #93421d;
+}
+
+.practice-screen .check-button:disabled {
+  background: var(--paper-light);
+  border-color: var(--line-strong);
+  color: var(--ink-soft);
+}
+
+.practice-screen .question-secondary-actions {
+  gap: 16px;
+  min-height: 34px;
+  padding-top: 2px;
+}
+
+.practice-screen .question-secondary-actions button {
+  color: var(--blue-faded);
+  font-size: 0.86rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 8px;
+}
+
+.practice-screen .fraction--entry {
+  min-width: 0.9em;
+}
+
+.practice-screen .fraction--entry > span {
+  min-height: 0.82em;
+  min-width: 0.72em;
+  text-align: center;
+}
+
+.practice-screen .choice-grid {
+  gap: 9px;
+  grid-area: answer;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 18px 0 0;
+  max-width: 700px;
+  width: 100%;
+}
+
+.practice-screen .choice-grid button {
+  background: var(--paper-raised);
+  border-color: var(--line-strong);
+  border-radius: 12px;
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  min-height: 68px;
+  padding: 12px 18px;
+}
+
+.practice-screen .choice-grid button:hover,
+.practice-screen .choice-grid button.is-selected {
+  background: var(--accent-pale);
+  border-color: var(--accent);
+}
+
+.practice-screen .choice-grid button.is-selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Support reads as part of the mathematical thought, not a detached card. */
+.practice-screen .question-content > .scaffold,
+.practice-screen .question-panel > .scaffold {
+  align-self: center;
+  border: 0;
+  display: block;
+  margin: 14px auto 0;
+  max-height: none;
+  max-width: 680px;
+  overflow: visible;
+  padding: 0;
+  position: static !important;
+  transform: none !important;
+  width: min(100%, 680px);
+}
+
+.practice-screen .question-content > .scaffold > div,
+.practice-screen .question-panel > .scaffold > div {
+  background: color-mix(in srgb, var(--accent-pale) 28%, var(--paper-raised));
+  border: 0;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  padding: 13px 16px;
+}
+
+.practice-screen .scaffold__heading {
+  margin-bottom: 7px;
+}
+
+.practice-screen .scaffold__heading > span {
+  color: var(--accent);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+
+.practice-screen .scaffold__heading > button {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--indigo);
+  cursor: pointer;
+  font-size: 0.82rem;
+  min-height: 44px;
+  padding-inline: 10px;
+}
+
+.practice-screen .scaffold__heading > button:hover,
+.practice-screen .scaffold__heading > button:focus-visible {
+  background: color-mix(in srgb, var(--accent-pale) 58%, transparent);
+}
+
+.practice-screen .scaffold p,
+.practice-screen .scaffold__steps li {
+  color: var(--ink);
+  font-size: clamp(1rem, 1.3vw, 1.12rem);
+  line-height: 1.4;
+}
+
+.practice-screen .scaffold__caption {
+  color: var(--ink-soft) !important;
+  font-size: 0.92rem !important;
+  margin-bottom: 9px !important;
+}
+
+.practice-screen .scaffold__steps ol {
+  gap: 5px;
+}
+
+.practice-screen .scaffold__steps li::before {
+  background: var(--accent-pale);
+  color: var(--accent);
+}
+
+.practice-screen .scaffold__model strong {
+  font-size: clamp(1.7rem, 2.8vw, 2.35rem);
+  margin-bottom: 4px;
+}
+
+.practice-screen .scaffold__model p,
+.practice-screen .worked-example span {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+.practice-screen .scaffold__model b {
+  font-size: 1.15rem;
+  margin-top: 5px;
+}
+
+.practice-screen .another-way {
+  border-left-color: var(--accent);
+  margin-top: 12px;
+}
+
+.practice-screen .another-way > span {
+  color: var(--accent);
+}
+
+/* Landscape iPads and laptops: the whole task is one view, with no page
+   scrolling. The left side is thinking; the right side is responding. */
+@media (orientation: landscape) and (min-width: 800px) and (max-height: 900px) {
+  .practice-screen .practice-workspace,
+  .practice-screen .practice-workspace:has(.scaffold) {
+    padding-top: 44px;
+  }
+
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.response-dock) {
+    align-items: center;
+    column-gap: clamp(30px, 4vw, 58px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(310px, 34vw, 370px);
+    height: 100%;
+    justify-content: center;
+    max-width: 1120px;
+  }
+
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.response-dock) > .question-content {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.response-dock) > .response-dock {
+    align-self: center;
+    border-left: 2px solid var(--accent);
+    border-top: 0;
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    max-width: 370px;
+    padding: 0 0 0 clamp(26px, 3vw, 44px);
+  }
+
+  .practice-screen .question-instruction {
+    font-size: clamp(1rem, 1.35vw, 1.18rem);
+    margin-bottom: 8px;
+  }
+
+  .practice-screen .question-math {
+    font-size: clamp(4.4rem, 7.2vw, 6.4rem);
+  }
+
+  .practice-screen .question-math--medium {
+    font-size: clamp(3.7rem, 5.9vw, 5.3rem);
+  }
+
+  .practice-screen .question-math--long {
+    font-size: clamp(2.8rem, 4.5vw, 4rem);
+  }
+
+  .practice-screen .question-math--prose {
+    font-size: clamp(2rem, 3.2vw, 2.9rem);
+  }
+
+  .practice-screen .prompt-visual {
+    margin-top: 12px;
+    padding-block: 10px;
+  }
+
+  .practice-screen .question-content > .scaffold,
+  .practice-screen .question-panel > .scaffold {
+    margin-top: 11px;
+  }
+
+  .practice-screen .question-content > .scaffold > div,
+  .practice-screen .question-panel > .scaffold > div {
+    padding: 10px 14px;
+  }
+
+  .practice-screen .scaffold p,
+  .practice-screen .scaffold__steps li {
+    font-size: 0.98rem;
+    line-height: 1.32;
+  }
+
+  .practice-screen .answer-display,
+  .practice-screen .response-dock > .answer-display {
+    font-size: clamp(3rem, 5.2vh, 4rem);
+    min-height: 60px;
+  }
+
+  .practice-screen .number-pad {
+    gap: 7px;
+  }
+
+  .practice-screen .question-panel,
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+    --key-size: clamp(54px, 7.4vh, 62px);
+  }
+
+  .practice-screen .feedback-line {
+    min-height: 30px;
+    padding-block: 3px;
+  }
+
+  .practice-screen .question-actions {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    margin-top: 8px;
+    width: min(100%, 220px);
+  }
+
+  .practice-screen .question-secondary-actions {
+    min-height: 30px;
+  }
+
+}
+
+@media (max-width: 799px), (orientation: portrait) {
+  .practice-screen {
+    height: auto;
+    min-height: 100svh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .practice-screen .practice-workspace,
+  .practice-screen .practice-workspace:has(.scaffold) {
+    overflow: visible;
+    padding-top: 54px;
+  }
+
+  .practice-screen .question-panel,
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+    display: flex;
+  }
+
+  .practice-screen .question-content {
+    width: min(100%, 760px);
+  }
+}
+
+@media (max-width: 620px) {
+  .practice-screen {
+    padding: 7px 12px max(20px, env(safe-area-inset-bottom));
+  }
+
+  .practice-screen .practice-header {
+    gap: 3px;
+    grid-template-columns: auto 1fr;
+    min-height: 76px;
+    row-gap: 0;
+  }
+
+  .practice-screen .practice-tools {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .practice-screen .session-pulse {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 24px;
+  }
+
+  /* Class view has three explicit exits/tools. Give them their own labelled
+     row instead of allowing the desktop header to run beyond a phone edge. */
+  .board-mode .practice-screen .practice-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 44px 44px;
+    min-height: 96px;
+    row-gap: 4px;
+  }
+
+  .board-mode .practice-screen .practice-header > .header-text-button {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .board-mode .practice-screen .session-pulse {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    min-width: 0;
+    width: auto;
+  }
+
+  .board-mode .practice-screen .practice-tools {
+    display: grid;
+    gap: 3px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 0.7fr);
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .board-mode .practice-screen .practice-tools > button {
+    min-width: 0;
+    padding-inline: 5px;
+    width: 100%;
+  }
+
+  .board-mode .practice-screen .board-choice-grid {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .board-mode .practice-screen .board-choice {
+    border-radius: 11px;
+    gap: 8px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    min-height: 58px;
+    padding: 8px 9px;
+  }
+
+  .board-mode .practice-screen .board-choice > span[aria-hidden="true"] {
+    font-size: 0.8rem;
+    height: 26px;
+    width: 26px;
+  }
+
+  .board-mode .practice-screen .board-choice > strong {
+    font-size: clamp(1.1rem, 6vw, 1.45rem);
+  }
+
+  .practice-screen .control-drawer {
+    top: 87px;
+  }
+
+  .board-mode .practice-screen .control-drawer {
+    top: 107px;
+  }
+
+  .practice-screen .control-drawer__tab {
+    font-size: 0.86rem;
+  }
+
+  .practice-screen .practice-workspace,
+  .practice-screen .practice-workspace:has(.scaffold) {
+    padding-top: 48px;
+  }
+
+  .practice-screen .question-instruction {
+    font-size: 1rem;
+    margin-bottom: 7px;
+  }
+
+  .practice-screen .question-math {
+    font-size: clamp(3.45rem, 18vw, 5rem);
+  }
+
+  .practice-screen .question-math--medium {
+    font-size: clamp(3rem, 15vw, 4.3rem);
+  }
+
+  .practice-screen .question-math--long {
+    font-size: clamp(2.35rem, 11.5vw, 3.4rem);
+  }
+
+  .practice-screen .question-math--prose {
+    font-size: clamp(1.75rem, 8.5vw, 2.5rem);
+  }
+
+  .practice-screen .prompt-visual {
+    margin-top: 12px;
+    padding: 10px 12px;
+  }
+
+  .practice-screen .response-dock {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .practice-screen .answer-display,
+  .practice-screen .response-dock > .answer-display {
+    font-size: clamp(2.75rem, 14vw, 3.8rem);
+    min-height: 58px;
+    min-width: min(74vw, 250px);
+  }
+
+  .practice-screen .question-panel,
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+    --key-size: clamp(55px, 17vw, 66px);
+  }
+
+  .practice-screen .number-pad {
+    gap: 7px;
+  }
+
+  .practice-screen .question-actions {
+    width: calc(var(--key-size) * 3 + 14px);
+  }
+
+  .practice-screen .question-content > .scaffold,
+  .practice-screen .question-panel > .scaffold {
+    width: 100%;
+  }
+
+  .practice-screen .question-content > .scaffold > div,
+  .practice-screen .question-panel > .scaffold > div {
+    padding: 11px 13px;
+  }
+
+  .practice-screen .choice-grid {
+    grid-template-columns: 1fr;
+    width: min(100%, 380px);
+  }
+
+  .practice-screen .choice-grid button {
+    min-height: 56px;
+  }
+}
+
+@media (max-width: 390px) {
   .practice-screen .practice-tools {
     gap: 1px;
   }
@@ -2274,8 +2326,7 @@
     padding-inline: 8px;
   }
 
-  .practice-screen .fullscreen-button span,
-  .setup-screen .fullscreen-button span {
+  .practice-screen .fullscreen-button span {
     font-size: 0.86rem;
   }
 
@@ -2286,13 +2337,179 @@
   }
 
   .board-mode .practice-screen .practice-tools .header-text-button {
-    display: none;
+    display: flex;
   }
 
   .board-mode .practice-screen .practice-tools .board-button {
-    font-size: 0.84rem;
-    min-width: 112px;
-    padding-inline: 7px;
+    font-size: 0.8rem;
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
+  .board-mode .practice-screen .practice-tools .fullscreen-button,
+  .board-mode .practice-screen .practice-tools .header-text-button {
+    font-size: 0.8rem;
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
+  .board-mode .practice-screen .practice-tools .fullscreen-button span {
+    font-size: inherit;
+  }
+}
+
+@media (max-width: 350px) {
+  .practice-screen .fullscreen-button {
+    min-width: 102px;
+    padding-inline: 6px;
+  }
+
+  .practice-screen .practice-tools .header-text-button {
+    min-width: 58px;
+    padding-inline: 4px;
+  }
+
+  .practice-screen .question-panel,
+  .fluency-app:not(.board-mode) .practice-screen .question-panel:has(.number-pad) {
+    --key-size: 54px;
+  }
+}
+
+/* Teacher-led presentation keeps a single, enlarged thought and the complete
+   labelled control row. */
+.board-mode .practice-screen .question-panel {
+  display: flex;
+  max-width: 1500px;
+}
+
+.board-mode .practice-screen .question-content {
+  width: 100%;
+}
+
+.board-mode .practice-screen .question-math {
+  font-size: clamp(7rem, 14vw, 17rem);
+}
+
+.board-mode .practice-screen .question-math--medium {
+  font-size: clamp(5.7rem, 11vw, 12rem);
+}
+
+.board-mode .practice-screen .question-math--long {
+  font-size: clamp(4.2rem, 8vw, 8.5rem);
+}
+
+.board-mode .practice-screen .question-math--prose {
+  font-size: clamp(3.1rem, 5.8vw, 6rem);
+}
+
+.board-mode .practice-screen .board-controls > button.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* A revealed class answer contains the original thought, choices/model,
+   explanation, answer and navigation at once. Anchor that complete state at
+   the top and use a deliberate vertical budget on classroom-height screens;
+   centring an over-tall stack would hide both the instruction and the exits. */
+@media (min-width: 800px) and (max-height: 1080px) {
+  .board-mode .practice-screen .practice-workspace:has(.board-answer) {
+    align-items: stretch;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) {
+    height: 100%;
+    justify-content: flex-start;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-content {
+    justify-content: flex-start;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-context {
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-instruction {
+    font-size: 1rem;
+    line-height: 1.25;
+    margin-bottom: 4px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-math {
+    font-size: clamp(4.4rem, 7vw, 5.4rem);
+    line-height: 0.92;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-math--medium {
+    font-size: clamp(3.8rem, 6vw, 4.8rem);
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-math--long {
+    font-size: clamp(3.1rem, 4.8vw, 4rem);
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-math--prose {
+    font-size: clamp(2.2rem, 3.6vw, 3.2rem);
+    line-height: 1.05;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-choice-grid {
+    gap: 8px;
+    margin-top: 9px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-choice {
+    min-height: 58px;
+    padding-block: 7px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-choice > strong {
+    font-size: clamp(1.35rem, 2vw, 1.75rem);
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-content > .scaffold {
+    margin-top: 8px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .question-content > .scaffold > div {
+    padding: 7px 12px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .scaffold__heading {
+    margin-bottom: 3px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .scaffold p,
+  .board-mode .practice-screen .question-panel:has(.board-answer) .scaffold__steps li,
+  .board-mode .practice-screen .question-panel:has(.board-answer) .worked-example span {
+    font-size: 0.95rem;
+    line-height: 1.24;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-answer {
+    margin-top: 9px;
+    padding-bottom: 4px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-answer strong {
+    font-size: 2.4rem;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-controls {
+    margin-top: 9px;
+  }
+
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-controls > button,
+  .board-mode .practice-screen .question-panel:has(.board-answer) .board-more > summary {
+    min-height: 52px;
+  }
+}
+
+@media (max-width: 620px) {
+  .board-mode .practice-screen .question-panel:has(.board-choice-grid) .question-math {
+    font-size: clamp(3.2rem, 18vw, 4.2rem);
+    line-height: 0.98;
   }
 }
 
@@ -2327,6 +2544,7 @@
     max-width: none;
   }
 
+  .practice-screen .question-content > .scaffold,
   .practice-screen .question-panel > .scaffold {
     max-width: 100%;
     padding: 0 12mm 18mm;
