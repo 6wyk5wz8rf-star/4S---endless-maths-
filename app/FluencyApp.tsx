@@ -1244,6 +1244,7 @@ export default function FluencyApp() {
   const [learningState, setLearningState] = useState<Record<string, MasteryState>>({});
   const [classroomState, setClassroomState] = useState<any>(() => createClassroomState({ applicationVersion: APP_VERSION }));
   const [activeProfileIds, setActiveProfileIds] = useState<string[]>([]);
+  const [activeParticipantKind, setActiveParticipantKind] = useState<TeacherParticipantSelection["participantKind"]>("guest");
   const [profilePickerOpen, setProfilePickerOpen] = useState(false);
   const [teacherGateOpen, setTeacherGateOpen] = useState(false);
   const [teacherGateMode, setTeacherGateMode] = useState<"choose" | "unlock">("choose");
@@ -1393,6 +1394,7 @@ export default function FluencyApp() {
           restoredResume = { ...savedActiveSession, ...participants };
           setResumeSnapshot(restoredResume);
           setActiveProfileIds(participants.profileIds);
+          setActiveParticipantKind(participants.participantKind as TeacherParticipantSelection["participantKind"]);
         } else {
           removeLocalKeys(ACTIVE_SESSION_KEY);
         }
@@ -1556,9 +1558,7 @@ export default function FluencyApp() {
     clearPracticeLinkRoute(window.location, window.history);
     removeLocalKeys(ACTIVE_SESSION_KEY);
     const availableProfileIds = (classroomState.profiles ?? []).filter((profile: any) => !profile.archived).map((profile: any) => String(profile.id));
-    const defaultParticipants: TeacherParticipantSelection = activeProfileIds.length === 1
-      ? { participantKind: "profile", profileIds: activeProfileIds }
-      : { participantKind: "guest", profileIds: [] };
+    const defaultParticipants: TeacherParticipantSelection = { participantKind: activeParticipantKind, profileIds: activeProfileIds };
     const participants = normaliseParticipantSelection(selectedParticipants ?? defaultParticipants, availableProfileIds);
     let nextChallenge = challenge;
     let nextSupport = support;
@@ -1642,6 +1642,7 @@ export default function FluencyApp() {
       length: configured?.length ?? { kind: "open" },
     };
     setActiveProfileIds(participants.profileIds);
+    setActiveParticipantKind(participants.participantKind as TeacherParticipantSelection["participantKind"]);
     setActiveSession(session);
     setResumeSnapshot(null);
     setScreen("practice");
@@ -1706,6 +1707,7 @@ export default function FluencyApp() {
     const sessionAlreadyComplete = (savedLength.kind === "questions" && resumedStats.attempted >= savedLength.value && resumeAfterCompletedAnswer)
       || (savedLength.kind === "minutes" && savedElapsed >= savedLength.value * 60);
     setActiveProfileIds(resumedSession.profileIds);
+    setActiveParticipantKind(resumedSession.participantKind);
     setActiveSession(resumedSession);
     if (sessionAlreadyComplete) {
       removeLocalKeys(ACTIVE_SESSION_KEY);
@@ -2537,6 +2539,7 @@ export default function FluencyApp() {
       setLearningState({});
       setResumeSnapshot(null);
       setActiveProfileIds([]);
+      setActiveParticipantKind("guest");
       return;
     }
 
@@ -2571,6 +2574,7 @@ export default function FluencyApp() {
     setLearningState(nextLearning);
     setResumeSnapshot(nextResume);
     setActiveProfileIds(nextResume ? participants.profileIds : []);
+    setActiveParticipantKind(nextResume ? participants.participantKind as TeacherParticipantSelection["participantKind"] : "guest");
     persistLocalJson(LEARNING_KEY, nextLearning);
     persistLocalJson(HISTORY_KEY, nextHistory);
     if (nextResume) persistLocalJson(ACTIVE_SESSION_KEY, nextResume);
@@ -2661,6 +2665,7 @@ export default function FluencyApp() {
       setResumeSnapshot(null);
     }
     setActiveProfileIds((current) => current.filter((id) => id !== profileId));
+    setActiveParticipantKind("guest");
     setActiveSession((current) => current?.profileIds.includes(profileId)
       ? { ...current, participantKind: "guest", profileIds: [], evidenceProfileId: null }
       : current);
@@ -2694,6 +2699,7 @@ export default function FluencyApp() {
     setMode("mix");
     setFocus(null);
     setActiveProfileIds([]);
+    setActiveParticipantKind("guest");
     setResumeSnapshot(null);
     setTeacherLocked(true);
     setScreen("setup");
@@ -2712,7 +2718,7 @@ export default function FluencyApp() {
     return { ...profile, displayName };
   }), [classroomState.profiles, classroomState.settings?.profilePrivacy, teacherProfiles]);
 
-  const activeProfile = pupilProfiles.find((profile) => profile.id === activeProfileIds[0]);
+  const activeProfile = activeParticipantKind === "profile" ? pupilProfiles.find((profile) => profile.id === activeProfileIds[0]) : undefined;
   const resumeProfileIds = Array.isArray(resumeSnapshot?.profileIds) ? resumeSnapshot.profileIds.map(String) : [];
   const resumeProfiles = resumeProfileIds.map((profileId: string) => pupilProfiles.find((profile) => profile.id === profileId && !profile.archived)).filter(Boolean) as TeacherProfile[];
   const resumeProfilesAvailable = resumeProfileIds.length === resumeProfiles.length;
@@ -2729,6 +2735,7 @@ export default function FluencyApp() {
       setResumeSnapshot(null);
     }
     setActiveProfileIds(profileId ? [profileId] : []);
+    setActiveParticipantKind(profileId ? "profile" : "guest");
   };
   const challengePermission = activeSession?.config?.pupilControls.challenge ?? "unlocked";
   const supportPermission = activeSession?.config?.pupilControls.support ?? "unlocked";
@@ -3143,7 +3150,7 @@ export default function FluencyApp() {
                 }
               }}
             >{classOnlySummary ? "Teach again" : "Practise again"}</button>
-            <button type="button" className="text-button" onClick={() => { setActiveSession(null); setScreen("setup"); }}>Finish</button>
+            <button type="button" className="text-button" onClick={() => { if (activeSession?.participantKind !== "profile") { setActiveProfileIds([]); setActiveParticipantKind("guest"); } setActiveSession(null); setScreen("setup"); }}>Finish</button>
           </div>
         </main>
       )}

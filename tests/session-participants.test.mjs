@@ -48,6 +48,8 @@ test("shared practice preserves a resumable session and starts as Guest", async 
   const source = await readFile(new URL("../app/FluencyApp.tsx", import.meta.url), "utf8");
   assert.match(source, /if \(!restoredResume\) setScreen\("share"\)/, "a valid link must not mask Continue after a refresh");
   assert.match(source, /const begin = [\s\S]*?clearPracticeLinkRoute\(window\.location, window\.history\);[\s\S]*?removeLocalKeys\(ACTIVE_SESSION_KEY\)/, "the link route must clear before a new session replaces the saved one");
+  assert.match(source, /defaultParticipants[^\n]+participantKind: activeParticipantKind, profileIds: activeProfileIds/, "starting anew must carry explicit participant meaning, not infer it from one ID");
+  assert.match(source, /activeSession\?\.participantKind !== "profile"[^}]+setActiveProfileIds\(\[\]\); setActiveParticipantKind\("guest"\)/, "finishing group practice must not leave a one-member group looking like an individual pupil");
   assert.match(source, /begin\(undefined, sharedSession\.config \?\? undefined, \{ participantKind: "guest", profileIds: \[\] \}\)/, "a shared link must not inherit private pupil identity");
   assert.match(source, /profile\.id === profileId && !profile\.archived/, "an archived profile must be rejected again at the exact evidence write");
   assert.match(source, /This link cannot be opened\./, "malformed explicit links need an honest error state");
