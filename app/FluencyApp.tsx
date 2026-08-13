@@ -37,6 +37,7 @@ import {
 } from "@/lib/classroom-mastery.mjs";
 import { createPrintPractice, createPrintPreview, normalisePrintMathText } from "@/lib/classroom-print.mjs";
 import { corruptRecordKey, readStoredJson, removeStoredKeys, resolveStorage, writeStoredJson } from "@/lib/local-persistence.mjs";
+import { clearPracticeLinkRoute, evidenceProfileForSession, isPracticeLinkRoute, normaliseParticipantSelection, restoreParticipantSelection } from "@/lib/session-participants.mjs";
 import { numberLineLabelPlan } from "@/lib/visual-presentation.mjs";
 import TeacherTools, { DEFAULT_TEACHER_CONFIG } from "./TeacherTools";
 import type {
@@ -47,6 +48,7 @@ import type {
   TeacherPreset,
   TeacherProfile,
   TeacherProfileReview,
+  TeacherParticipantSelection,
   TeacherRecentSession,
   TeacherSessionConfig,
 } from "./TeacherTools";
@@ -88,14 +90,17 @@ type ActiveSession = {
   seed: string;
   title: string;
   config: TeacherSessionConfig | null;
+  participantKind: TeacherParticipantSelection["participantKind"];
   profileIds: string[];
+  evidenceProfileId: string | null;
   startedAt: number;
   length: TeacherSessionConfig["length"] | { kind: "open" };
 };
 
 type SharedSession = {
-  config: TeacherSessionConfig;
+  config: TeacherSessionConfig | null;
   summary: string;
+  error?: string;
 };
 
 type VisualData = {
@@ -1377,21 +1382,31 @@ export default function FluencyApp() {
       }, { applicationVersion: APP_VERSION });
       setClassroomState(migrated);
       setLearningState(savedLearning && typeof savedLearning === "object" ? savedLearning : {});
+      let restoredResume: any = null;
       if (savedActiveSession?.startedAt && Date.now() - Number(savedActiveSession.startedAt) < 48 * 60 * 60 * 1000) {
         const savedProfileIds = Array.isArray(savedActiveSession.profileIds) ? savedActiveSession.profileIds.map(String) : [];
-        const profilesStillAvailable = savedProfileIds.every((profileId: string) => migrated.profiles?.some((profile: any) => profile.id === profileId && !profile.archived));
+        const availableProfileIds = (migrated.profiles ?? []).filter((profile: any) => !profile.archived).map((profile: any) => String(profile.id));
+        const participants = restoreParticipantSelection(savedActiveSession, availableProfileIds);
+        const profilesStillAvailable = savedProfileIds.length === participants.profileIds.length
+          && savedProfileIds.every((profileId: string) => participants.profileIds.includes(profileId));
         if (profilesStillAvailable) {
-          setResumeSnapshot(savedActiveSession);
-          setActiveProfileIds(savedProfileIds);
+          restoredResume = { ...savedActiveSession, ...participants };
+          setResumeSnapshot(restoredResume);
+          setActiveProfileIds(participants.profileIds);
         } else {
           removeLocalKeys(ACTIVE_SESSION_KEY);
         }
       }
-      const shared = decodePracticeConfig(`${window.location.search}${window.location.hash}`);
+      const routeValue = `${window.location.search}${window.location.hash}`;
+      const hasPracticeLink = isPracticeLinkRoute(routeValue);
+      const shared = decodePracticeConfig(routeValue);
       if (shared.valid) {
         const config = toTeacherConfig(shared.config);
         setSharedSession({ config, summary: teacherSessionSummary(config) });
-        setScreen("share");
+        if (!restoredResume) setScreen("share");
+      } else if (hasPracticeLink) {
+        setSharedSession({ config: null, summary: "", error: shared.error });
+        if (!restoredResume) setScreen("share");
       }
       setHydrated(true);
     }, 0);
@@ -1537,8 +1552,14 @@ export default function FluencyApp() {
     questionStartedAt.current = Date.now();
   }, [activeSession?.config, initialStage, persistLocalJson, syncEngineSelection]);
 
-  const begin = (presetKey?: keyof typeof PRESETS, configured?: TeacherSessionConfig, selectedProfiles = activeProfileIds) => {
+  const begin = (presetKey?: keyof typeof PRESETS, configured?: TeacherSessionConfig, selectedParticipants?: TeacherParticipantSelection) => {
+    clearPracticeLinkRoute(window.location, window.history);
     removeLocalKeys(ACTIVE_SESSION_KEY);
+    const availableProfileIds = (classroomState.profiles ?? []).filter((profile: any) => !profile.archived).map((profile: any) => String(profile.id));
+    const defaultParticipants: TeacherParticipantSelection = activeProfileIds.length === 1
+      ? { participantKind: "profile", profileIds: activeProfileIds }
+      : { participantKind: "guest", profileIds: [] };
+    const participants = normaliseParticipantSelection(selectedParticipants ?? defaultParticipants, availableProfileIds);
     let nextChallenge = challenge;
     let nextSupport = support;
     let nextMode = mode;
@@ -1614,11 +1635,13 @@ export default function FluencyApp() {
       seed: sessionSeed,
       title: configured ? configured.focus : presetKey ? PRESETS[presetKey].label : "Mixed arithmetic",
       config: configured ?? null,
-      profileIds: selectedProfiles,
+      participantKind: participants.participantKind as ActiveSession["participantKind"],
+      profileIds: participants.profileIds,
+      evidenceProfileId: participants.evidenceProfileId,
       startedAt,
       length: configured?.length ?? { kind: "open" },
     };
-    setActiveProfileIds(selectedProfiles);
+    setActiveProfileIds(participants.profileIds);
     setActiveSession(session);
     setResumeSnapshot(null);
     setScreen("practice");
@@ -1637,6 +1660,7 @@ export default function FluencyApp() {
 
   const resumePractice = () => {
     if (!resumeSnapshot?.question || !resumeSnapshot?.seed) return;
+    clearPracticeLinkRoute(window.location, window.history);
     const savedConfig = resumeSnapshot.config ? toTeacherConfig(resumeSnapshot.config) : null;
     const range = savedConfig?.challenge.kind === "range" ? { min: savedConfig.challenge.min, max: savedConfig.challenge.max } : null;
     const savedChallenge = Number(resumeSnapshot.challenge ?? challenge);
@@ -1657,12 +1681,16 @@ export default function FluencyApp() {
     const savedElapsed = Math.max(0, Number(resumeSnapshot.stats?.elapsed ?? 0));
     const resumedStats = { ...EMPTY_STATS, ...resumeSnapshot.stats, elapsed: savedElapsed, startedAt: Date.now() - savedElapsed * 1000 };
     const savedLength = savedConfig?.length ?? resumeSnapshot.length ?? { kind: "open" };
+    const availableProfileIds = (classroomState.profiles ?? []).filter((profile: any) => !profile.archived).map((profile: any) => String(profile.id));
+    const participants = restoreParticipantSelection(resumeSnapshot, availableProfileIds);
     const resumedSession: ActiveSession = {
       id: resumeSnapshot.id,
       seed: resumeSnapshot.seed,
       title: resumeSnapshot.title ?? "Practice",
       config: savedConfig,
-      profileIds: Array.isArray(resumeSnapshot.profileIds) ? resumeSnapshot.profileIds : [],
+      participantKind: participants.participantKind as ActiveSession["participantKind"],
+      profileIds: participants.profileIds,
+      evidenceProfileId: participants.evidenceProfileId,
       startedAt: resumedStats.startedAt,
       length: savedLength,
     };
@@ -1796,8 +1824,9 @@ export default function FluencyApp() {
     attemptCount: number;
     misconception?: string | null;
   }) => {
-    if (!question || !activeSession || activeSession.profileIds.length !== 1 || boardMode) return;
-    const profileId = activeSession.profileIds[0];
+    if (!question || !activeSession) return;
+    const profileId = evidenceProfileForSession(activeSession, boardMode);
+    if (!profileId) return;
     const challengeBand = activeSession.config?.challenge.kind === "range"
       ? { min: activeSession.config.challenge.min, max: activeSession.config.challenge.max }
       : { min: activeSession.config?.challenge.kind === "fixed" ? activeSession.config.challenge.value : challenge, max: activeSession.config?.challenge.kind === "fixed" ? activeSession.config.challenge.value : challenge };
@@ -1828,10 +1857,13 @@ export default function FluencyApp() {
     // One question produces one evidence event. Repeated responses replace that
     // event so an eventual success can update, rather than duplicate, the earlier
     // incorrect evidence.
-    setClassroomState((current: any) => appendEvents({
-      ...current,
-      events: (current.events ?? []).filter((candidate: any) => candidate.id !== event.id),
-    }, [event]));
+    setClassroomState((current: any) => {
+      if (!(current.profiles ?? []).some((profile: any) => profile.id === profileId && !profile.archived)) return current;
+      return appendEvents({
+        ...current,
+        events: (current.events ?? []).filter((candidate: any) => candidate.id !== event.id),
+      }, [event]);
+    });
   }, [activeSession, boardMode, challenge, lastMisconception, question, scaffoldStage]);
 
   const submit = useCallback(() => {
@@ -2522,9 +2554,12 @@ export default function FluencyApp() {
     const nextHistory = Array.isArray(applicationData.generatorHistory) ? applicationData.generatorHistory.map(String).slice(-500) : [];
     const candidateSession = applicationData.activeSession && typeof applicationData.activeSession === "object" ? applicationData.activeSession : null;
     const candidateProfileIds = Array.isArray(candidateSession?.profileIds) ? candidateSession.profileIds.map(String) : [];
-    const sessionProfilesExist = candidateProfileIds.every((profileId: string) => nextClassroomState.profiles?.some((profile: any) => profile.id === profileId && !profile.archived));
+    const availableProfileIds = (nextClassroomState.profiles ?? []).filter((profile: any) => !profile.archived).map((profile: any) => String(profile.id));
+    const participants = restoreParticipantSelection(candidateSession, availableProfileIds);
+    const sessionProfilesExist = candidateProfileIds.length === participants.profileIds.length
+      && candidateProfileIds.every((profileId: string) => participants.profileIds.includes(profileId));
     const sessionIsRecent = candidateSession?.startedAt && Date.now() - Number(candidateSession.startedAt) < 48 * 60 * 60 * 1000;
-    const nextResume = sessionProfilesExist && sessionIsRecent ? candidateSession : null;
+    const nextResume = sessionProfilesExist && sessionIsRecent ? { ...candidateSession, ...participants } : null;
 
     setChallenge(nextChallenge);
     setSupport(nextSupport);
@@ -2535,7 +2570,7 @@ export default function FluencyApp() {
     setPreferences(nextPreferences);
     setLearningState(nextLearning);
     setResumeSnapshot(nextResume);
-    setActiveProfileIds(nextResume ? candidateProfileIds : []);
+    setActiveProfileIds(nextResume ? participants.profileIds : []);
     persistLocalJson(LEARNING_KEY, nextLearning);
     persistLocalJson(HISTORY_KEY, nextHistory);
     if (nextResume) persistLocalJson(ACTIVE_SESSION_KEY, nextResume);
@@ -2607,9 +2642,9 @@ export default function FluencyApp() {
     return createPrintPreview(pack) as PrintPreview;
   };
 
-  const launchTeacherSession = (config: TeacherSessionConfig, profileIds?: string[]) => {
+  const launchTeacherSession = (config: TeacherSessionConfig, participants: TeacherParticipantSelection) => {
     setTeacherLocked(true);
-    begin(undefined, config, profileIds ?? []);
+    begin(undefined, config, participants);
   };
 
   const closeTeacherTools = () => {
@@ -2619,6 +2654,24 @@ export default function FluencyApp() {
 
   const setTeacherCode = (code: string | null) => updateClassroomSettings({ teacherAccessConfigured: true, teacherPinHash: code ? localPinHash(code) : "" });
 
+  const detachProfileFromPractice = (profileId: string) => {
+    const resumeUsesProfile = Array.isArray(resumeSnapshot?.profileIds) && resumeSnapshot.profileIds.includes(profileId);
+    if (resumeUsesProfile) {
+      removeLocalKeys(ACTIVE_SESSION_KEY);
+      setResumeSnapshot(null);
+    }
+    setActiveProfileIds((current) => current.filter((id) => id !== profileId));
+    setActiveSession((current) => current?.profileIds.includes(profileId)
+      ? { ...current, participantKind: "guest", profileIds: [], evidenceProfileId: null }
+      : current);
+  };
+
+  const archiveProfile = (profileId: string) => {
+    const source = classroomState.profiles.find((profile: any) => profile.id === profileId);
+    if (source) setClassroomState((current: any) => upsertProfile(current, { ...source, archived: true, updatedAt: Date.now() }));
+    detachProfileFromPractice(profileId);
+  };
+
   const deleteProfile = (profileId: string) => {
     setClassroomState((current: any) => ({
       ...current,
@@ -2627,7 +2680,7 @@ export default function FluencyApp() {
       events: current.events.filter((event: any) => event.profileId !== profileId),
       notes: current.notes.filter((note: any) => !(note.subjectType === "profile" && note.subjectId === profileId)),
     }));
-    setActiveProfileIds((current) => current.filter((id) => id !== profileId));
+    detachProfileFromPractice(profileId);
   };
 
   const resetCompleteApplication = () => {
@@ -2762,7 +2815,7 @@ export default function FluencyApp() {
           onDeletePreset={(id) => setClassroomState((current: any) => ({ ...current, presets: current.presets.filter((preset: any) => preset.id !== id || preset.builtIn) }))}
           onCreateProfiles={createProfiles}
           onCreateGroup={(name, profileIds) => setClassroomState((current: any) => upsertGroup(current, { id: localId("group"), name, type: "focus", profileIds, createdAt: Date.now(), updatedAt: Date.now() }))}
-          onArchiveProfile={(id) => { const source = classroomState.profiles.find((profile: any) => profile.id === id); if (source) setClassroomState((current: any) => upsertProfile(current, { ...source, archived: true, updatedAt: Date.now() })); }}
+          onArchiveProfile={archiveProfile}
           onDeleteProfile={deleteProfile}
           onSetAccessibility={setAccessibility}
           onSetProfilePrivacy={(privacy) => updateClassroomSettings({ profilePrivacy: privacy === "first-and-initial" ? "first-initial" : privacy })}
@@ -2787,7 +2840,11 @@ export default function FluencyApp() {
       {screen === "share" && sharedSession && (
         <main className="share-screen" id="main-content" tabIndex={-1}>
           <header className="setup-header"><div className="wordmark"><i aria-hidden="true" />4S Arithmetic</div></header>
-          <section className="share-summary"><p>Shared practice</p><h1>Ready when you are.</h1><strong>{sharedSession.summary}</strong><button type="button" className="primary-button" onClick={() => begin(undefined, sharedSession.config, [])}>Start</button><button type="button" className="text-button" onClick={() => { window.history.replaceState(null, "", window.location.pathname); setSharedSession(null); setScreen("setup"); }}>Change the settings</button></section>
+          {sharedSession.config ? (
+            <section className="share-summary"><p>Shared practice</p><h1>Ready when you are.</h1><strong>{sharedSession.summary}</strong><button type="button" className="primary-button" onClick={() => begin(undefined, sharedSession.config ?? undefined, { participantKind: "guest", profileIds: [] })}>Start</button><button type="button" className="text-button" onClick={() => { clearPracticeLinkRoute(window.location, window.history); setSharedSession(null); setScreen("setup"); }}>Change the settings</button></section>
+          ) : (
+            <section className="share-summary" role="alert"><p>Shared practice</p><h1>This link cannot be opened.</h1><strong>{sharedSession.error ?? "This practice link is not valid."}</strong><button type="button" className="primary-button" onClick={() => { clearPracticeLinkRoute(window.location, window.history); setSharedSession(null); setScreen("setup"); }}>Choose practice instead</button></section>
+          )}
         </main>
       )}
 
@@ -3077,7 +3134,9 @@ export default function FluencyApp() {
               type="button"
               className="primary-button"
               onClick={() => {
-                begin(undefined, activeSession?.config ?? undefined, activeSession?.profileIds ?? activeProfileIds);
+                begin(undefined, activeSession?.config ?? undefined, activeSession
+                  ? { participantKind: activeSession.participantKind, profileIds: activeSession.profileIds }
+                  : undefined);
                 if (classOnlySummary) {
                   setBoardMode(true);
                   void enterFullscreen();
