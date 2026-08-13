@@ -6,6 +6,7 @@ const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "ut
 const pupil = readFileSync(new URL("../app/pupil-final.css", import.meta.url), "utf8");
 const teacher = readFileSync(new URL("../app/teacher.css", import.meta.url), "utf8");
 const teacherTools = readFileSync(new URL("../app/TeacherTools.tsx", import.meta.url), "utf8");
+const fluencyApp = readFileSync(new URL("../app/FluencyApp.tsx", import.meta.url), "utf8");
 
 function colour(source, token) {
   const match = source.match(new RegExp(`--${token}:\\s*(#[0-9a-f]{6})`, "i"));
@@ -45,6 +46,19 @@ test("essential exits and disabled states remain explicit", () => {
 test("skip and update controls keep full touch targets", () => {
   assert.match(globals, /\.skip-link\s*\{[^}]*min-height:\s*44px/s);
   assert.match(globals, /\.update-banner button\s*\{[^}]*min-height:\s*44px/s);
+});
+
+test("the completion-screen Finish action keeps a strict 44px touch target", () => {
+  const textButtonRule = globals.match(/(?:^|\n)\.text-button\s*\{([^}]*)\}/s);
+  assert.ok(textButtonRule, "missing shared text-button rule");
+  assert.match(textButtonRule[1], /min-height:\s*44px/);
+  assert.match(textButtonRule[1], /min-inline-size:\s*44px/);
+  assert.match(textButtonRule[1], /padding:\s*8px 4px/);
+  assert.match(
+    fluencyApp,
+    /className="summary-actions"[\s\S]*?className="text-button"[\s\S]*?>Finish<\/button>/,
+    "the session completion exit must retain the protected text-button target",
+  );
 });
 
 test("print sheets preserve choices, visuals and separate strip answers", () => {
