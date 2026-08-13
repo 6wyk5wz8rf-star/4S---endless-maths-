@@ -2722,20 +2722,28 @@ export default function FluencyApp() {
   const resumeProfileIds = Array.isArray(resumeSnapshot?.profileIds) ? resumeSnapshot.profileIds.map(String) : [];
   const resumeProfiles = resumeProfileIds.map((profileId: string) => pupilProfiles.find((profile) => profile.id === profileId && !profile.archived)).filter(Boolean) as TeacherProfile[];
   const resumeProfilesAvailable = resumeProfileIds.length === resumeProfiles.length;
-  const visibleResumeSnapshot = resumeSnapshot && resumeProfilesAvailable && sameIds(activeProfileIds, resumeProfileIds) ? resumeSnapshot : null;
-  const resumeLabel = resumeProfileIds.length === 0
+  const visibleResumeSnapshot = resumeSnapshot
+    && resumeProfilesAvailable
+    && activeParticipantKind === resumeSnapshot.participantKind
+    && sameIds(activeProfileIds, resumeProfileIds)
+    ? resumeSnapshot
+    : null;
+  const resumeLabel = resumeSnapshot?.participantKind === "group"
+    ? "Continue group practice"
+    : resumeProfileIds.length === 0
     ? "Continue practice"
     : resumeProfiles.length === 1
       ? `Continue ${resumeProfiles[0].displayName}`
       : `Continue group practice`;
   const selectPupilProfile = (profileId: string | null) => {
     const nextProfileIds = profileId ? [profileId] : [];
-    if (resumeSnapshot && !sameIds(nextProfileIds, resumeProfileIds)) {
+    const nextParticipantKind: TeacherParticipantSelection["participantKind"] = profileId ? "profile" : "guest";
+    if (resumeSnapshot && (resumeSnapshot.participantKind !== nextParticipantKind || !sameIds(nextProfileIds, resumeProfileIds))) {
       removeLocalKeys(ACTIVE_SESSION_KEY);
       setResumeSnapshot(null);
     }
     setActiveProfileIds(profileId ? [profileId] : []);
-    setActiveParticipantKind(profileId ? "profile" : "guest");
+    setActiveParticipantKind(nextParticipantKind);
   };
   const challengePermission = activeSession?.config?.pupilControls.challenge ?? "unlocked";
   const supportPermission = activeSession?.config?.pupilControls.support ?? "unlocked";
@@ -3157,7 +3165,7 @@ export default function FluencyApp() {
 
       {settingsOpen && <SettingsPanel preferences={preferences} setPreferences={setPreferences} onClose={() => setSettingsOpen(false)} onReset={resetPreferences} />}
       {jotOpen && <JotPad onClose={() => setJotOpen(false)} />}
-      {profilePickerOpen && <ProfilePicker profiles={pupilProfiles} activeId={activeProfileIds[0]} onSelect={selectPupilProfile} onClose={() => setProfilePickerOpen(false)} />}
+      {profilePickerOpen && <ProfilePicker profiles={pupilProfiles} activeId={activeParticipantKind === "profile" ? activeProfileIds[0] : undefined} onSelect={selectPupilProfile} onClose={() => setProfilePickerOpen(false)} />}
       {teacherGateOpen && <TeacherGate mode={teacherGateMode} pin={teacherPin} error={teacherGateError} setPin={(value) => { setTeacherPin(value); setTeacherGateError(""); }} onNoCode={enterTeacherToolsWithoutCode} onSubmit={submitTeacherPin} onClose={() => setTeacherGateOpen(false)} />}
       {boardHelpOpen && <BoardHelpDialog onClose={() => setBoardHelpOpen(false)} />}
     </div>
