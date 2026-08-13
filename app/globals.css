@@ -1708,7 +1708,8 @@ button:disabled {
   font-size: 0.82rem;
   font-weight: 650;
   min-height: 44px;
-  padding: 8px 0;
+  min-inline-size: 44px;
+  padding: 8px 4px;
 }
 
 .text-button--danger {
