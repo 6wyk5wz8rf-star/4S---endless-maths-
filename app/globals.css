@@ -75,9 +75,12 @@ button:disabled {
 }
 
 .skip-link {
+  align-items: center;
   background: var(--indigo-deep);
   color: white;
+  display: flex;
   left: 16px;
+  min-height: 44px;
   padding: 10px 16px;
   position: fixed;
   top: -80px;
@@ -2606,7 +2609,7 @@ button:disabled {
 }
 
 .update-banner span { font-size: .84rem; margin-right: 6px; white-space: nowrap; }
-.update-banner button { background: transparent; border: 0; border-radius: 999px; color: #fff; cursor: pointer; min-height: 40px; padding: 0 13px; }
+.update-banner button { background: transparent; border: 0; border-radius: 999px; color: #fff; cursor: pointer; min-height: 44px; padding: 0 13px; }
 .update-banner button:first-of-type { background: #fff; color: var(--indigo-deep); font-weight: 750; }
 
 .control-drawer.is-locked .control-drawer__tab { cursor: default; opacity: 1; }

@@ -42,6 +42,11 @@ test("essential exits and disabled states remain explicit", () => {
   assert.match(teacher, /button:disabled\s*\{[^}]*var\(--teacher-line-strong\)/s);
 });
 
+test("skip and update controls keep full touch targets", () => {
+  assert.match(globals, /\.skip-link\s*\{[^}]*min-height:\s*44px/s);
+  assert.match(globals, /\.update-banner button\s*\{[^}]*min-height:\s*44px/s);
+});
+
 test("print sheets preserve choices, visuals and separate strip answers", () => {
   assert.match(teacher, /\.print-choices\s*\{/);
   for (const className of ["print-hundred-grid", "print-partition", "print-ten-frame", "print-place-value-grid", "print-part-whole", "print-relationship", "print-worked"]) {
