@@ -11,7 +11,7 @@ test("published and source service workers share the same versioned cache contra
     readFile(PUBLIC_SW, "utf8"),
   ]);
   assert.equal(rootSource, publicSource, "the checked-in GitHub Pages worker must match the build source");
-  assert.match(publicSource, /release-4s-v3/);
+  assert.match(publicSource, /release-4s-v4/);
   assert.match(publicSource, /new Request\(url, \{ cache: "reload" \}\)/, "a new cache must not be seeded from a stale HTTP cache");
   assert.match(publicSource, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, "activation may only remove this application's old caches");
   assert.match(publicSource, /request\.mode === "navigate"[\s\S]*fetch\(request\)/, "navigation must try the network before falling back offline");
