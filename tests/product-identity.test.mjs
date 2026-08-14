@@ -34,10 +34,11 @@ test("4S Arithmetic is the single public product identity", async () => {
 });
 
 test("the reimagined pupil layout keeps compatibility data while removing forced help scrolling", async () => {
-  const [pupil, css, globals] = await Promise.all([
+  const [pupil, css, globals, publishedCss] = await Promise.all([
     read("../app/FluencyApp.tsx"),
     read("../app/pupil-final.css"),
     read("../app/globals.css"),
+    read("../assets/index.css"),
   ]);
 
   assert.match(pupil, /const STORAGE_KEY = "year4-fluency-preferences-v3"/, "existing pupil data must remain readable");
@@ -46,6 +47,10 @@ test("the reimagined pupil layout keeps compatibility data while removing forced
   assert.doesNotMatch(pupil, /scrollIntoView/, "revealing help must not move the whole classroom canvas");
   assert.match(globals, /--accent:\s*#a94f23/i);
   assert.match(css, /\.practice-screen\s*\{[^}]*height:\s*100svh[^}]*overflow:\s*hidden/s);
+  assert.match(css, /@media \(orientation: landscape\) and \(min-width: 800px\)\s*\{[\s\S]*?\.question-panel:has\(\.response-dock\)[^{]*\{[^}]*grid-template-columns:/s, "landscape practice must separate thinking and response at ordinary desktop and iPad heights");
+  assert.doesNotMatch(css, /@media \(orientation: landscape\)[^{]*max-height:\s*900px/, "common 901–1080 px landscape displays must not fall back to the clipped vertical stack");
+  assert.match(publishedCss, /@media \(orientation:landscape\) and \(width>=800px\)/, "the published GitHub Pages CSS must contain the unclipped landscape split");
+  assert.doesNotMatch(publishedCss, /@media \(orientation:landscape\)[^{]*(?:height<=900px|max-height:900px)/, "the published CSS must not restore the old 900 px cutoff");
   assert.match(css, /\.setup-screen \.wordmark::after\s*\{[^}]*content:\s*"4S"/s, "the 320 px wordmark must retain the product identity");
 });
 
@@ -85,7 +90,7 @@ test("the restrained visual system uses one burnt accent and honest review state
 
   assert.match(teacherCss, /--teacher-accent:\s*#a94f23/i, "pupil and teacher surfaces must share one burnt accent");
   assert.doesNotMatch(teacherCss, /--teacher-accent:\s*#8a4b2e/i);
-  assert.match(pupilCss, /\.setup-screen \.setup-intro h1\s*\{[^}]*font-size:\s*clamp\(2\.8rem, 4\.2vw, 3\.6rem\)/s);
+  assert.match(pupilCss, /\.setup-screen \.setup-intro h1\s*\{[^}]*font-size:\s*clamp\(2\.45rem, 3\.4vw, 3\.15rem\)/s, "setup hierarchy must remain legible without a marketing-scale headline");
   assert.match(pupilCss, /\.summary-screen \.summary-actions \.primary-button\s*\{[^}]*background:\s*var\(--accent\)/s);
   assert.match(teacher, /No pupil profiles yet\./);
   assert.match(teacher, /Add pupil profiles\./);
