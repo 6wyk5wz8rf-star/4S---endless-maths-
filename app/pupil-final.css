@@ -165,7 +165,7 @@
 
 .setup-screen .setup-intro h1 {
   color: var(--indigo-deep);
-  font-size: clamp(2.8rem, 4.2vw, 3.6rem);
+  font-size: clamp(2.45rem, 3.4vw, 3.15rem);
   font-weight: 560;
   letter-spacing: -0.045em;
   line-height: 1;
@@ -523,7 +523,7 @@
   }
 
   .setup-screen .setup-intro h1 {
-    font-size: clamp(2.7rem, 11vw, 3.5rem);
+    font-size: clamp(2.35rem, 9vw, 3rem);
   }
 
   .setup-screen .axis__heading {
@@ -692,7 +692,7 @@
   }
 
   .setup-screen .setup-intro h1 {
-    font-size: clamp(2.55rem, 12vw, 3.05rem);
+    font-size: clamp(2.25rem, 10.5vw, 2.7rem);
   }
 
   .setup-screen .setup-intro-copy {
@@ -2028,7 +2028,7 @@
 
 /* Landscape iPads and laptops: the whole task is one view, with no page
    scrolling. The left side is thinking; the right side is responding. */
-@media (orientation: landscape) and (min-width: 800px) and (max-height: 900px) {
+@media (orientation: landscape) and (min-width: 800px) {
   .practice-screen .practice-workspace,
   .practice-screen .practice-workspace:has(.scaffold) {
     padding-top: 44px;
