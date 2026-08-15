@@ -299,18 +299,11 @@
   display: inline-flex;
   font-size: 1.16rem;
   font-weight: 760;
-  gap: 10px;
   justify-content: center;
   min-height: 52px;
   min-width: 236px;
   padding-inline: 32px;
   width: auto;
-}
-
-.setup-screen .setup-actions > .primary-button::after {
-  content: "→";
-  font-size: 1.1em;
-  font-weight: 520;
 }
 
 .setup-screen .setup-actions > .primary-button:hover {
