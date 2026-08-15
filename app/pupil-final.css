@@ -141,8 +141,8 @@
 
 .setup-screen .fullscreen-button,
 .setup-screen .profile-button {
-  background: rgba(255, 254, 250, 0.42);
-  border-color: rgba(185, 188, 192, 0.72);
+  background: rgba(255, 255, 255, 0.42);
+  border-color: rgba(191, 160, 122, 0.72);
 }
 
 .setup-screen .setup-intro {
@@ -297,8 +297,8 @@
 }
 
 .setup-screen .setup-actions > .primary-button:hover {
-  background: #93421d;
-  border-color: #93421d;
+  background: color-mix(in srgb, var(--palette-red) 86%, black);
+  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
 }
 
 .setup-screen .resume-primary {
@@ -1297,8 +1297,8 @@
 }
 
 .summary-screen .summary-actions .primary-button:hover {
-  background: #93421d;
-  border-color: #93421d;
+  background: color-mix(in srgb, var(--palette-red) 86%, black);
+  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
 }
 
 @media (max-width: 540px) {
@@ -1561,7 +1561,7 @@
   background: var(--paper-raised);
   border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 18px 48px rgba(20, 36, 67, 0.12);
+  box-shadow: 0 18px 48px rgba(59, 75, 89, 0.12);
   margin-top: 6px;
 }
 
@@ -1867,8 +1867,8 @@
 }
 
 .practice-screen .check-button:hover {
-  background: #93421d;
-  border-color: #93421d;
+  background: color-mix(in srgb, var(--palette-red) 86%, black);
+  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
 }
 
 .practice-screen .check-button:disabled {

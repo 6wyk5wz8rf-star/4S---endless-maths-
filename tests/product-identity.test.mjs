@@ -45,7 +45,12 @@ test("the reimagined pupil layout keeps compatibility data while removing forced
   assert.match(pupil, /className="question-content"/);
   assert.match(pupil, /className="response-dock response-dock--choice"/);
   assert.doesNotMatch(pupil, /scrollIntoView/, "revealing help must not move the whole classroom canvas");
-  assert.match(globals, /--accent:\s*#a94f23/i);
+  assert.match(globals, /--palette-red:\s*#af2e1b/i);
+  assert.match(globals, /--palette-orange:\s*#cc6324/i);
+  assert.match(globals, /--palette-slate:\s*#3b4b59/i);
+  assert.match(globals, /--palette-sand:\s*#bfa07a/i);
+  assert.match(globals, /--palette-blush:\s*#d9c3b0/i);
+  assert.match(globals, /--accent:\s*#af2e1b/i);
   assert.match(css, /\.practice-screen\s*\{[^}]*height:\s*100svh[^}]*overflow:\s*hidden/s);
   assert.match(css, /@media \(orientation: landscape\) and \(min-width: 800px\)\s*\{[\s\S]*?\.question-panel:has\(\.response-dock\)[^{]*\{[^}]*grid-template-columns:/s, "landscape practice must separate thinking and response at ordinary desktop and iPad heights");
   assert.doesNotMatch(css, /@media \(orientation: landscape\)[^{]*max-height:\s*900px/, "common 901–1080 px landscape displays must not fall back to the clipped vertical stack");
@@ -88,8 +93,8 @@ test("the restrained visual system uses one burnt accent and honest review state
     read("../app/TeacherTools.tsx"),
   ]);
 
-  assert.match(teacherCss, /--teacher-accent:\s*#a94f23/i, "pupil and teacher surfaces must share one burnt accent");
-  assert.doesNotMatch(teacherCss, /--teacher-accent:\s*#8a4b2e/i);
+  assert.match(teacherCss, /--teacher-accent:\s*#af2e1b/i, "pupil and teacher surfaces must share the canonical red accent");
+  assert.match(teacherCss, /--teacher-orange:\s*#cc6324/i);
   assert.match(pupilCss, /\.setup-screen \.setup-intro h1\s*\{[^}]*font-size:\s*clamp\(2\.45rem, 3\.4vw, 3\.15rem\)/s, "setup hierarchy must remain legible without a marketing-scale headline");
   assert.match(pupilCss, /\.summary-screen \.summary-actions \.primary-button\s*\{[^}]*background:\s*var\(--accent\)/s);
   assert.match(teacher, /No pupil profiles yet\./);
