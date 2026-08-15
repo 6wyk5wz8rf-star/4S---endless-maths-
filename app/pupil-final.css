@@ -311,6 +311,19 @@
   border-color: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
 }
 
+.setup-screen .setup-actions > .primary-button.new-practice-secondary {
+  background: var(--paper-raised);
+  border-color: color-mix(in srgb, var(--palette-slate) 28%, var(--paper-raised));
+  box-shadow: inset 3px 0 0 var(--palette-orange);
+  color: var(--ink);
+}
+
+.setup-screen .setup-actions > .primary-button.new-practice-secondary:hover {
+  background: var(--guide-action-soft);
+  border-color: var(--palette-sand);
+  color: var(--ink);
+}
+
 .setup-screen .resume-primary {
   display: inline-flex;
   flex-direction: column;

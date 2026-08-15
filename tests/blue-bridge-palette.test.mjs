@@ -93,3 +93,35 @@ test("the loaded cascade keeps the light guidance contract effective", async () 
   assert.equal(effectiveDeclaration([teacher], ".teacher-primary-button", "background"), "var(--teacher-guide-action)");
   assert.equal(effectiveDeclaration([teacher], '.teacher-topbar nav button[aria-current="page"]', "background"), "var(--teacher-guide-soft)");
 });
+
+test("a resumable session leaves Continue as the only filled next action", async () => {
+  const [pupil, app, publishedCss, publishedApp] = await Promise.all([
+    read("../app/pupil-final.css"),
+    read("../app/FluencyApp.tsx"),
+    read("../assets/index.css"),
+    read("../assets/app.js"),
+  ]);
+  assert.match(
+    app,
+    /className=\{`primary-button\$\{visibleResumeSnapshot \? " new-practice-secondary" : ""\}`\}/,
+    "the saved-state branch must explicitly quiet Start new practice",
+  );
+  assert.equal(
+    effectiveDeclaration([pupil], ".setup-screen .setup-actions > .primary-button.new-practice-secondary", "background"),
+    "var(--paper-raised)",
+  );
+  assert.equal(
+    effectiveDeclaration([pupil], ".setup-screen .setup-actions > .primary-button.new-practice-secondary", "color"),
+    "var(--ink)",
+  );
+  assert.equal(
+    effectiveDeclaration([pupil], ".setup-screen .setup-actions > .primary-button.new-practice-secondary", "box-shadow"),
+    "inset 3px 0 0 var(--palette-orange)",
+  );
+  assert.equal(
+    effectiveDeclaration([pupil], ".setup-screen .setup-resume-choice > .primary-button", "background"),
+    "var(--guide-action)",
+  );
+  assert.match(publishedCss, /\.setup-screen \.setup-actions>.primary-button\.new-practice-secondary\{[^}]*background:var\(--paper-raised\)/);
+  assert.match(publishedApp, /new-practice-secondary/, "the published application must retain the saved-state branch");
+});
