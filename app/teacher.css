@@ -1,14 +1,19 @@
 .teacher-tools {
-  --teacher-ink: #17213a;
-  --teacher-ink-soft: #596276;
-  --teacher-indigo: #24375d;
-  --teacher-indigo-deep: #152440;
-  --teacher-wash: #e8ebf0;
-  --teacher-paper: #f6f2e8;
-  --teacher-raised: #fffdf7;
-  --teacher-line: #d4d2ca;
-  --teacher-line-strong: #78818f;
-  --teacher-accent: #a94f23;
+  --teacher-red: #AF2E1B;
+  --teacher-orange: #CC6324;
+  --teacher-slate: #3B4B59;
+  --teacher-sand: #BFA07A;
+  --teacher-blush: #D9C3B0;
+  --teacher-ink: #3B4B59;
+  --teacher-ink-soft: #5A6874;
+  --teacher-indigo: #3B4B59;
+  --teacher-indigo-deep: #3B4B59;
+  --teacher-wash: #EFE6DF;
+  --teacher-paper: #F6F1EC;
+  --teacher-raised: #FFFFFF;
+  --teacher-line: #DAC9B2;
+  --teacher-line-strong: #BFA07A;
+  --teacher-accent: #AF2E1B;
   min-height: 100svh;
   background: var(--teacher-paper);
   color: var(--teacher-ink);
@@ -58,7 +63,7 @@
 .teacher-secondary-button, .teacher-file-button { background: transparent; border: 1px solid var(--teacher-line); font-weight: 700; }
 .teacher-quiet-button, .teacher-text-button { background: transparent; border: 0; color: var(--teacher-indigo); font-weight: 700; }
 .teacher-text-button { padding-inline: 10px; }
-.teacher-primary-button:hover { background: #8d3f1b; border-color: #8d3f1b; }
+.teacher-primary-button:hover { background: color-mix(in srgb, var(--teacher-red) 86%, black); border-color: color-mix(in srgb, var(--teacher-red) 86%, black); }
 .teacher-secondary-button:hover, .teacher-file-button:hover, .teacher-icon-button:hover { background: var(--teacher-raised); border-color: var(--teacher-indigo); }
 
 .teacher-main { min-height: calc(100svh - 76px); }
@@ -230,11 +235,11 @@
 .teacher-file-button { position: relative; }
 .teacher-file-button input { height: 1px; opacity: 0; position: absolute; width: 1px; }
 .teacher-file-button:focus-within { outline: 3px solid var(--teacher-accent); outline-offset: 3px; }
-.teacher-danger-zone button { background: transparent; border: 1px solid var(--teacher-accent); border-radius: 999px; color: #7f3f26; min-height: 46px; padding: 0 18px; }
+.teacher-danger-zone button { background: transparent; border: 1px solid var(--teacher-accent); border-radius: 999px; color: var(--teacher-red); min-height: 46px; padding: 0 18px; }
 .teacher-version { color: var(--teacher-ink-soft); font-size: .85rem; padding-top: 20px; }
 
-.teacher-dialog { background: var(--teacher-raised); border: 0; border-radius: 18px; box-shadow: 0 24px 80px rgba(21,36,64,.18); color: var(--teacher-ink); max-height: min(90svh, 860px); max-width: min(620px, calc(100vw - 32px)); padding: 0; width: 100%; }
-.teacher-dialog::backdrop { background: rgba(21,36,64,.36); backdrop-filter: blur(4px); }
+.teacher-dialog { background: var(--teacher-raised); border: 0; border-radius: 18px; box-shadow: 0 24px 80px rgba(59,75,89,.18); color: var(--teacher-ink); max-height: min(90svh, 860px); max-width: min(620px, calc(100vw - 32px)); padding: 0; width: 100%; }
+.teacher-dialog::backdrop { background: rgba(59,75,89,.36); backdrop-filter: blur(4px); }
 .teacher-dialog > header { align-items: center; border-bottom: 1px solid var(--teacher-line); display: flex; justify-content: space-between; padding: 18px 22px; }
 .teacher-dialog > header h2 { font-size: 1.35rem; margin: 0; }
 .teacher-dialog-form { display: grid; gap: 22px; padding: 26px; }
@@ -247,7 +252,7 @@
 .teacher-print-layout { display: grid; grid-template-columns: 310px 1fr; height: calc(100% - 76px); min-height: 560px; }
 .teacher-print-controls { border-right: 1px solid var(--teacher-line); display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 24px; }
 .teacher-print-controls > label { display: grid; gap: 6px; }
-.teacher-print-preview { align-items: center; background: #deddd8; display: flex; flex-direction: column; gap: 34px; justify-content: flex-start; overflow: auto; padding: 34px; }
+.teacher-print-preview { align-items: center; background: color-mix(in srgb, var(--teacher-blush) 58%, white); display: flex; flex-direction: column; gap: 34px; justify-content: flex-start; overflow: auto; padding: 34px; }
 .print-sheet { aspect-ratio: 210 / 297; background: white; box-shadow: 0 5px 30px rgba(0,0,0,.12); color: #111; min-height: 760px; overflow-wrap: anywhere; padding: 7%; width: min(100%, 600px); }
 .teacher-print-preview.landscape .print-sheet { aspect-ratio: 297 / 210; width: min(100%, 780px); }
 .teacher-print-preview.format-strip .print-sheet--questions { aspect-ratio: 210 / 99; box-sizing: border-box; flex: 0 0 auto; min-height: 0; padding: 3.5%; width: min(100%, 780px); }

@@ -4,8 +4,8 @@
   "description": "Clear, calm Year 4 arithmetic practice with adjustable challenge and help.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f6f2e8",
-  "theme_color": "#142443",
+  "background_color": "#D9C3B0",
+  "theme_color": "#3B4B59",
   "icons": [
     {
       "src": "./favicon.svg",
