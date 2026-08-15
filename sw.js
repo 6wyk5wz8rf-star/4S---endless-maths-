@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "year-4-fluency-";
-const CACHE_NAME = `${CACHE_PREFIX}release-4s-v8`;
+const CACHE_NAME = `${CACHE_PREFIX}release-4s-v9`;
 const APP_SHELL = ["./", "./index.html", "./assets/app.js", "./assets/index.css", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {

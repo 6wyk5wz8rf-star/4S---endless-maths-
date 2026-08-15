@@ -1,16 +1,16 @@
 :root {
   --core-indigo: #18243D;
-  --core-indigo-deep: #111A2D;
+  --core-indigo-deep: #18243D;
   --core-off-white: #F5F1E8;
   --palette-red: #AF2E1B;
   --palette-orange: #CC6324;
   --palette-slate: #3B4B59;
   --palette-sand: #BFA07A;
   --palette-blush: #D9C3B0;
-  --ink: #18243D;
+  --ink: #3B4B59;
   --ink-soft: #526073;
   --indigo: #18243D;
-  --indigo-deep: #111A2D;
+  --indigo-deep: #18243D;
   --blue-faded: #5E6B77;
   --blue-pale: #ECE2D8;
   --paper: #F5F1E8;
@@ -20,6 +20,8 @@
   --line-strong: #BFA07A;
   --accent: #18243D;
   --accent-pale: #E7E9EE;
+  --guide-action: #A9501E;
+  --guide-action-soft: color-mix(in srgb, var(--palette-orange) 10%, var(--paper-light));
   --good: #3B4B59;
   --good-pale: #ECE2D8;
   --focus: #CC6324;
@@ -440,8 +442,8 @@ button:disabled {
 }
 
 .primary-button {
-  background: var(--indigo-deep);
-  border: 1px solid var(--indigo-deep);
+  background: var(--guide-action);
+  border: 1px solid var(--guide-action);
   border-radius: 999px;
   color: #fff;
   cursor: pointer;
@@ -453,7 +455,8 @@ button:disabled {
 }
 
 .primary-button:hover {
-  background: var(--indigo);
+  background: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
+  border-color: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
   transform: translateY(-1px);
 }
 
