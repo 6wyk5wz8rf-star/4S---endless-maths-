@@ -1061,7 +1061,7 @@ function JotPad({ onClose }: { onClose: () => void }) {
         context.lineCap = "round";
         context.lineJoin = "round";
         context.lineWidth = 2.4;
-        context.strokeStyle = "#3B4B59";
+        context.strokeStyle = "#18243D";
       }
       history.current = [];
       setStrokeCount(0);

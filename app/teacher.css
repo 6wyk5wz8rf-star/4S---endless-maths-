@@ -1,19 +1,22 @@
 .teacher-tools {
+  --teacher-core-indigo: #18243D;
+  --teacher-core-indigo-deep: #111A2D;
   --teacher-red: #AF2E1B;
   --teacher-orange: #CC6324;
   --teacher-slate: #3B4B59;
   --teacher-sand: #BFA07A;
   --teacher-blush: #D9C3B0;
-  --teacher-ink: #3B4B59;
-  --teacher-ink-soft: #5A6874;
-  --teacher-indigo: #3B4B59;
-  --teacher-indigo-deep: #3B4B59;
+  --teacher-ink: #18243D;
+  --teacher-ink-soft: #526073;
+  --teacher-indigo: #18243D;
+  --teacher-indigo-deep: #111A2D;
   --teacher-wash: #EFE6DF;
-  --teacher-paper: #F6F1EC;
+  --teacher-paper: #F5F1E8;
   --teacher-raised: #FFFFFF;
   --teacher-line: #DAC9B2;
   --teacher-line-strong: #BFA07A;
-  --teacher-accent: #AF2E1B;
+  --teacher-accent: #18243D;
+  --teacher-focus: #CC6324;
   min-height: 100svh;
   background: var(--teacher-paper);
   color: var(--teacher-ink);
@@ -41,7 +44,7 @@
 .teacher-tools button, .teacher-tools select, .teacher-tools input[type="checkbox"], .teacher-tools input[type="radio"] { cursor: pointer; }
 .teacher-tools button:disabled, .teacher-tools select:disabled, .teacher-tools input:disabled { cursor: not-allowed; filter: saturate(.45); opacity: 1; }
 .teacher-tools button:disabled { background: var(--teacher-wash) !important; border-color: var(--teacher-line-strong) !important; box-shadow: none; color: var(--teacher-ink-soft) !important; }
-.teacher-tools button:focus-visible, .teacher-tools input:focus-visible, .teacher-tools select:focus-visible, .teacher-tools textarea:focus-visible, .teacher-tools summary:focus-visible { outline: 3px solid var(--teacher-accent); outline-offset: 3px; }
+.teacher-tools button:focus-visible, .teacher-tools input:focus-visible, .teacher-tools select:focus-visible, .teacher-tools textarea:focus-visible, .teacher-tools summary:focus-visible { outline: 3px solid var(--teacher-focus); outline-offset: 3px; }
 .teacher-tools h1, .teacher-tools h2, .teacher-tools h3, .teacher-tools p { margin-top: 0; }
 .teacher-tools .sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 
@@ -63,7 +66,7 @@
 .teacher-secondary-button, .teacher-file-button { background: transparent; border: 1px solid var(--teacher-line); font-weight: 700; }
 .teacher-quiet-button, .teacher-text-button { background: transparent; border: 0; color: var(--teacher-indigo); font-weight: 700; }
 .teacher-text-button { padding-inline: 10px; }
-.teacher-primary-button:hover { background: color-mix(in srgb, var(--teacher-red) 86%, black); border-color: color-mix(in srgb, var(--teacher-red) 86%, black); }
+.teacher-primary-button:hover { background: var(--teacher-indigo-deep); border-color: var(--teacher-indigo-deep); }
 .teacher-secondary-button:hover, .teacher-file-button:hover, .teacher-icon-button:hover { background: var(--teacher-raised); border-color: var(--teacher-indigo); }
 
 .teacher-main { min-height: calc(100svh - 76px); }
@@ -234,8 +237,8 @@
 .teacher-data-actions section > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .teacher-file-button { position: relative; }
 .teacher-file-button input { height: 1px; opacity: 0; position: absolute; width: 1px; }
-.teacher-file-button:focus-within { outline: 3px solid var(--teacher-accent); outline-offset: 3px; }
-.teacher-danger-zone button { background: transparent; border: 1px solid var(--teacher-accent); border-radius: 999px; color: var(--teacher-red); min-height: 46px; padding: 0 18px; }
+.teacher-file-button:focus-within { outline: 3px solid var(--teacher-focus); outline-offset: 3px; }
+.teacher-danger-zone button { background: transparent; border: 1px solid var(--teacher-red); border-radius: 999px; color: var(--teacher-red); min-height: 46px; padding: 0 18px; }
 .teacher-version { color: var(--teacher-ink-soft); font-size: .85rem; padding-top: 20px; }
 
 .teacher-dialog { background: var(--teacher-raised); border: 0; border-radius: 18px; box-shadow: 0 24px 80px rgba(59,75,89,.18); color: var(--teacher-ink); max-height: min(90svh, 860px); max-width: min(620px, calc(100vw - 32px)); padding: 0; width: 100%; }

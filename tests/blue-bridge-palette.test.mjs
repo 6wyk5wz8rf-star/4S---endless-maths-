@@ -29,15 +29,30 @@ test("pupil, teacher and installed surfaces use the exact Blue Bridge palette", 
     assert.match(globals, new RegExp(colour, "i"), `pupil tokens must include ${colour}`);
     assert.match(teacher, new RegExp(colour, "i"), `teacher tokens must include ${colour}`);
   }
-  assert.equal(JSON.parse(manifest).theme_color, "#3B4B59");
-  assert.equal(JSON.parse(manifest).background_color, "#D9C3B0");
-  assert.match(favicon, /#D9C3B0[\s\S]*#3B4B59[\s\S]*#CC6324/);
-  assert.match(jotPad, /strokeStyle = "#3B4B59"/, "generated pupil marks must use the shared slate");
+  assert.equal(JSON.parse(manifest).theme_color, "#18243D");
+  assert.equal(JSON.parse(manifest).background_color, "#F5F1E8");
+  assert.match(favicon, /#F5F1E8[\s\S]*#18243D[\s\S]*#CC6324/);
+  assert.match(jotPad, /strokeStyle = "#18243D"/, "generated pupil marks must use the dominant indigo");
 });
 
 test("semantic palette pairings retain readable contrast", () => {
-  assert.ok(contrast("#AF2E1B", "#FFFFFF") >= 4.5, "red actions need readable white labels");
+  assert.ok(contrast("#AF2E1B", "#FFFFFF") >= 4.5, "red error roles need readable white labels");
+  assert.ok(contrast("#18243D", "#F5F1E8") >= 4.5, "indigo actions need readable off-white labels");
   assert.ok(contrast("#3B4B59", "#FFFFFF") >= 4.5, "slate actions need readable white labels");
   assert.ok(contrast("#3B4B59", "#D9C3B0") >= 4.5, "slate text needs readable blush surfaces");
   assert.ok(contrast("#CC6324", "#111111") >= 4.5, "orange states need dark labels");
+});
+
+test("ordinary action hierarchy is indigo-first and red remains semantic", async () => {
+  const [globals, pupil, teacher] = await Promise.all([
+    read("../app/globals.css"),
+    read("../app/pupil-final.css"),
+    read("../app/teacher.css"),
+  ]);
+  assert.match(globals, /--accent:\s*#18243D/i);
+  assert.match(globals, /--paper:\s*#F5F1E8/i);
+  assert.match(teacher, /--teacher-accent:\s*#18243D/i);
+  assert.match(teacher, /\.teacher-primary-button\s*\{[^}]*background:\s*var\(--teacher-accent\)/s);
+  assert.doesNotMatch(pupil, /primary-button[^}]*background:\s*(?:#AF2E1B|var\(--palette-red\))/is);
+  assert.match(teacher, /\.teacher-danger-zone button\s*\{[^}]*border:\s*1px solid var\(--teacher-red\)/s);
 });
