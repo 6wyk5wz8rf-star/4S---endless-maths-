@@ -93,10 +93,11 @@ test("the restrained visual system uses one burnt accent and honest review state
     read("../app/TeacherTools.tsx"),
   ]);
 
-  assert.match(teacherCss, /--teacher-accent:\s*#18243d/i, "pupil and teacher surfaces must share the dominant indigo action role");
+  assert.match(teacherCss, /--teacher-accent:\s*#18243d/i, "pupil and teacher surfaces retain restrained indigo structure");
+  assert.match(teacherCss, /--teacher-guide-action:\s*#a9501e/i, "the single next action uses the accessible burnt-orange guide");
   assert.match(teacherCss, /--teacher-orange:\s*#cc6324/i);
   assert.match(pupilCss, /\.setup-screen \.setup-intro h1\s*\{[^}]*font-size:\s*clamp\(2\.45rem, 3\.4vw, 3\.15rem\)/s, "setup hierarchy must remain legible without a marketing-scale headline");
-  assert.match(pupilCss, /\.summary-screen \.summary-actions \.primary-button\s*\{[^}]*background:\s*var\(--accent\)/s);
+  assert.match(pupilCss, /\.summary-screen \.summary-actions \.primary-button\s*\{[^}]*background:\s*var\(--guide-action\)/s);
   assert.match(teacher, /No pupil profiles yet\./);
   assert.match(teacher, /Add pupil profiles\./);
   assert.match(teacher, /No matching profiles\./);

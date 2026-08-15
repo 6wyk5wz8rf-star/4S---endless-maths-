@@ -2895,7 +2895,7 @@ export default function FluencyApp() {
           </div>
 
           <div className="setup-actions">
-            <button type="button" className="primary-button" onClick={() => begin()}>{visibleResumeSnapshot ? "Start new practice" : "Start"}</button>
+            <button type="button" className={`primary-button${visibleResumeSnapshot ? " new-practice-secondary" : ""}`} onClick={() => begin()}>{visibleResumeSnapshot ? "Start new practice" : "Start"}</button>
             <div className={`setup-options ${modeOpen ? "is-open" : ""}`}>
               <ModeSelector
                 mode={mode}

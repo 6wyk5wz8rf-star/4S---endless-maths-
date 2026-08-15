@@ -164,7 +164,7 @@
 }
 
 .setup-screen .setup-intro h1 {
-  color: var(--indigo-deep);
+  color: var(--ink);
   font-size: clamp(2.45rem, 3.4vw, 3.15rem);
   font-weight: 560;
   letter-spacing: -0.045em;
@@ -213,7 +213,7 @@
 }
 
 .setup-screen .axis__title label {
-  color: var(--indigo-deep);
+  color: var(--ink);
   font-size: 1.12rem;
   font-weight: 780;
   letter-spacing: 0;
@@ -228,7 +228,7 @@
 }
 
 .setup-screen .axis__heading output {
-  color: var(--indigo);
+  color: var(--guide-action);
   flex: 0 0 auto;
   font-size: 1.12rem;
   font-weight: 760;
@@ -240,11 +240,12 @@
 }
 
 .setup-screen .axis input[type="range"]::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--palette-slate) 0 var(--range-progress), var(--line) var(--range-progress) 100%);
   height: 8px;
 }
 
 .setup-screen .axis input[type="range"]::-webkit-slider-thumb {
-  border-width: 3px;
+  border: 3px solid var(--guide-action);
   height: 36px;
   margin-top: -14px;
   width: 36px;
@@ -255,7 +256,12 @@
   height: 8px;
 }
 
+.setup-screen .axis input[type="range"]::-moz-range-progress {
+  background: var(--palette-slate);
+}
+
 .setup-screen .axis input[type="range"]::-moz-range-thumb {
+  border-color: var(--guide-action);
   height: 30px;
   width: 30px;
 }
@@ -285,20 +291,37 @@
 }
 
 .setup-screen .setup-actions > .primary-button {
-  background: var(--accent);
-  border-color: var(--accent);
+  align-items: center;
+  background: var(--guide-action);
+  border-color: var(--guide-action);
   border-radius: 12px;
   color: white;
+  display: inline-flex;
   font-size: 1.16rem;
   font-weight: 760;
-  min-height: 60px;
-  min-width: 0;
-  width: min(100%, 440px);
+  justify-content: center;
+  min-height: 52px;
+  min-width: 236px;
+  padding-inline: 32px;
+  width: auto;
 }
 
 .setup-screen .setup-actions > .primary-button:hover {
-  background: var(--indigo-deep);
-  border-color: var(--indigo-deep);
+  background: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
+  border-color: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
+}
+
+.setup-screen .setup-actions > .primary-button.new-practice-secondary {
+  background: var(--paper-raised);
+  border-color: color-mix(in srgb, var(--palette-slate) 28%, var(--paper-raised));
+  box-shadow: inset 3px 0 0 var(--palette-orange);
+  color: var(--ink);
+}
+
+.setup-screen .setup-actions > .primary-button.new-practice-secondary:hover {
+  background: var(--guide-action-soft);
+  border-color: var(--palette-sand);
+  color: var(--ink);
 }
 
 .setup-screen .resume-primary {
@@ -324,13 +347,13 @@
 }
 
 .setup-screen .setup-resume-choice > .primary-button {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--guide-action);
+  border-color: var(--guide-action);
   border-radius: 12px;
   color: white;
   font-size: 1.08rem;
-  min-height: 60px;
-  width: min(100%, 440px);
+  min-height: 52px;
+  width: min(100%, 320px);
 }
 
 .setup-screen .setup-resume-choice > span {
@@ -662,7 +685,7 @@
   }
 
   .setup-screen .setup-actions > .primary-button {
-    min-height: 60px;
+    min-height: 52px;
   }
 
   .setup-screen .setup-footer {
@@ -706,7 +729,7 @@
   }
 
   .setup-screen .setup-resume-choice > .primary-button {
-    min-height: 58px;
+    min-height: 52px;
   }
 
   .setup-screen .setup-controls {
@@ -727,7 +750,7 @@
   }
 
   .setup-screen .setup-actions > .primary-button {
-    min-height: 58px;
+    min-height: 52px;
   }
 
   .setup-screen .setup-footer {
@@ -1289,16 +1312,16 @@
 }
 
 .summary-screen .summary-actions .primary-button {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--guide-action);
+  border-color: var(--guide-action);
   border-radius: 12px;
   color: white;
   min-height: 52px;
 }
 
 .summary-screen .summary-actions .primary-button:hover {
-  background: var(--indigo-deep);
-  border-color: var(--indigo-deep);
+  background: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
+  border-color: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
 }
 
 @media (max-width: 540px) {
@@ -1861,14 +1884,14 @@
 }
 
 .practice-screen .check-button {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--guide-action);
+  border-color: var(--guide-action);
   color: white;
 }
 
 .practice-screen .check-button:hover {
-  background: var(--indigo-deep);
-  border-color: var(--indigo-deep);
+  background: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
+  border-color: color-mix(in srgb, var(--guide-action) 88%, var(--indigo));
 }
 
 .practice-screen .check-button:disabled {
@@ -2419,8 +2442,9 @@
 }
 
 .board-mode .practice-screen .board-controls > button.is-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--guide-action);
+  border-color: var(--guide-action);
+  color: white;
 }
 
 /* A revealed class answer contains the original thought, choices/model,
