@@ -297,8 +297,8 @@
 }
 
 .setup-screen .setup-actions > .primary-button:hover {
-  background: color-mix(in srgb, var(--palette-red) 86%, black);
-  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
+  background: var(--indigo-deep);
+  border-color: var(--indigo-deep);
 }
 
 .setup-screen .resume-primary {
@@ -1297,8 +1297,8 @@
 }
 
 .summary-screen .summary-actions .primary-button:hover {
-  background: color-mix(in srgb, var(--palette-red) 86%, black);
-  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
+  background: var(--indigo-deep);
+  border-color: var(--indigo-deep);
 }
 
 @media (max-width: 540px) {
@@ -1867,8 +1867,8 @@
 }
 
 .practice-screen .check-button:hover {
-  background: color-mix(in srgb, var(--palette-red) 86%, black);
-  border-color: color-mix(in srgb, var(--palette-red) 86%, black);
+  background: var(--indigo-deep);
+  border-color: var(--indigo-deep);
 }
 
 .practice-screen .check-button:disabled {
